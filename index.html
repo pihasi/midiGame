@@ -17,7 +17,7 @@
   button:disabled { background: #292929; color: #666; }
   .playbtn { background: #2a5c8a; }
   select, input[type=number] { background: #222; color: #fff; border: 1px solid #444; border-radius: 6px; padding: 5px 8px; font-size: 0.85em; }
-  input[type=number] { width: 70px; }
+  input[type=number] { width: 68px; }
   input[type=range] { vertical-align: middle; }
   .panel { background: #181818; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
   .row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
@@ -33,12 +33,14 @@
   #scoreBoard { display: flex; justify-content: center; gap: 18px; margin-bottom: 8px; font-size: 0.88em; color: #ddd; }
   #scoreBoard span.big { font-size: 1.2em; font-weight: bold; color: #fff; }
   #padGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; max-width: 380px; margin: 8px auto; }
-  .padBtn { aspect-ratio: 1; border-radius: 10px; font-size: 0.7em; font-weight: bold; color: #111; border: none; display: flex; align-items: center; justify-content: center; touch-action: none; }
+  .padBtn { aspect-ratio: 1; border-radius: 10px; font-size: 0.7em; font-weight: bold; color: #111; border: none; display: flex; flex-direction: column; align-items: center; justify-content: center; touch-action: none; }
+  .padBtn .keyLabel { font-size: 0.75em; opacity: 0.7; font-weight: normal; }
   .padBtn.empty { background: #1a1a1a; color: #444; }
-  .padBtn:active { filter: brightness(1.3); }
+  .padBtn:active, .padBtn.pressed { filter: brightness(1.4); }
   #kitPreviewGrid { display: flex; flex-wrap: wrap; gap: 8px; }
   .kitPreviewBtn { background: #263238; }
   #midiInfo { font-size: 0.85em; color: #aaa; white-space: pre-line; }
+  #patternRadios label { font-size: 0.85em; margin-right: 8px; }
   details { margin-top: 16px; }
   summary { cursor: pointer; color: #888; font-size: 0.85em; }
   #usageDoc { font-size: 0.85em; line-height: 1.7; color: #ccc; }
@@ -49,7 +51,15 @@
 </head>
 <body>
 
-<input type="file" id="fileInput" accept=".mid,.midi">
+<div class="row">
+  <input type="file" id="fileInput" accept=".mid,.midi">
+  <div id="patternRadios">
+    <label><input type="radio" name="pattern" value="file" id="patternFile"> 読み込んだファイル</label>
+    <label><input type="radio" name="pattern" value="8beat" id="pattern8beat" checked> 8ビート</label>
+    <label><input type="radio" name="pattern" value="16beat"> 16ビート</label>
+    <label><input type="radio" name="pattern" value="fourfloor"> 四つ打ち</label>
+  </div>
+</div>
 
 <div class="panel">
   <div class="row">
@@ -57,35 +67,10 @@
     <button id="stopBtn" disabled>■ 停止</button>
     <label>速度 <input type="range" id="speedRange" min="0.3" max="2.0" step="0.1" value="1.0"></label>
     <span id="speedLabel">x1.0</span>
+    <span id="bpmDisplay" style="color:#8ab4f8;"></span>
     <span id="timeDisplay">0.0s / 0.0s</span>
     <span id="loadState"></span>
   </div>
-</div>
-
-<div class="panel">
-  <h3>🔁 小節ループ練習（範囲指定）</h3>
-  <div class="row">
-    <label><input type="checkbox" id="loopCheckbox"> 指定範囲だけループ再生</label>
-    開始小節 <input type="number" id="measureStartInput" min="1" value="1">
-    から <input type="number" id="measureCountInput" min="1" value="1"> 小節分
-    <span id="currentMeasureEl" style="color:#aaa;"></span>
-  </div>
-  <div class="hint">全<span id="measureTotal">-</span>小節。下の「全体譜面」をタップすると再生位置指定、押しっぱなし＋ドラッグでループ範囲を指定できます。</div>
-</div>
-
-<div class="panel">
-  <h3>小節の区切り位置の調整</h3>
-  <div class="row">
-    テンポ <input type="number" id="bpmInput" step="0.1" min="1" value="120"> BPM
-    1小節の拍数 <input type="number" id="beatsPerMeasureInput" min="1" value="4">
-    <button id="recalcMeasuresBtn">この設定で計算しなおす</button>
-  </div>
-  <div class="row">
-    <button id="pickTempoBtn">楽譜から基準指定（音符を2つクリック）</button>
-    基準の拍数 <input type="number" id="refBeatsInput" min="0.25" step="0.25" value="4">
-    <button id="pickStartBtn">小節の開始基準を指定（音符を1つクリック）</button>
-  </div>
-  <div class="hint" id="calibStatus">「楽譜から基準指定」を押した後、下の楽譜表示（スクロール式）の中の音符を2つクリックすると、その間隔から自動でBPMを計算します。「小節の開始基準を指定」は音符を1つクリックすると、その音を1小節目の頭に設定します。以降の小節は、拍/8分/16分のタイミングに合うノーツがあれば自動でそこに補正されます。</div>
 </div>
 
 <div class="sectionHeader"><label><input type="checkbox" id="showNotationCheckbox" checked> 楽譜表示（スクロール式）</label></div>
@@ -93,9 +78,44 @@
   <canvas id="notationCanvas" width="720" height="170"></canvas>
 </div>
 
-<div class="sectionHeader"><label><input type="checkbox" id="showOverviewCheckbox" checked> 全体譜面（俯瞰・タップで再生位置指定/ドラッグでループ指定）</label></div>
+<div class="row" style="justify-content:center;">
+  <label><input type="checkbox" id="loopQuickToggle"> 🔁 ループ再生 ON/OFF</label>
+</div>
+<div class="sectionHeader"><label><input type="checkbox" id="showOverviewCheckbox" checked> 全体譜面（俯瞰・タップで再生位置指定/長押し+ドラッグでループ指定）</label></div>
 <div id="overviewWrap">
   <canvas id="overviewCanvas" width="720" height="60"></canvas>
+</div>
+
+<div class="sectionHeader"><label><input type="checkbox" id="showLoopPanelCheckbox"> 🔁 小節ループ練習（詳細設定）</label></div>
+<div class="panel" id="loopPanel" style="display:none;">
+  <div class="row">
+    <label><input type="checkbox" id="loopCheckbox"> 指定範囲だけループ再生</label>
+    開始小節 <input type="number" id="measureStartInput" min="1" value="1">
+    から <input type="number" id="measureCountInput" min="1" value="1"> 小節分
+    <span id="currentMeasureEl" style="color:#aaa;"></span>
+  </div>
+  <div class="hint">全<span id="measureTotal">-</span>小節</div>
+</div>
+
+<div class="sectionHeader"><label><input type="checkbox" id="showMeasureSettingsCheckbox" checked> 小節の区切り位置の調整</label></div>
+<div class="panel" id="measureSettingsPanel">
+  <div class="row">
+    基準の拍数 <input type="number" id="refBeatsInput" min="0.25" step="0.25" value="1">
+    <button id="pickTempoBtn">楽譜から基準指定（音符を2つクリック）</button>
+    ずらす拍数 <input type="number" id="refStartShiftInput" step="0.25" value="0">
+    <button id="pickStartBtn">小節の開始基準を指定（音符を1つクリック）</button>
+  </div>
+  <div class="row">
+    1小節の拍数 <input type="number" id="beatsPerMeasureInput" min="1" value="4">
+    区切りの小節数 <input type="number" id="segmentSizeInput" min="1" value="4">
+    改行の小節数 <input type="number" id="lineBreakInput" min="1" value="8">
+    <button id="recalcMeasuresBtn">この設定で計算しなおす</button>
+  </div>
+  <div class="row">
+    <button id="copySettingsBtn">設定を含んだファイル名をコピー</button>
+    <span id="copyStatusEl" class="hint"></span>
+  </div>
+  <div class="hint" id="calibStatus">「楽譜から基準指定」を押した後、下の楽譜表示内の音符を2つクリックするとBPMを実測します。「小節の開始基準を指定」は音符を1つクリックすると小節先頭に設定します（「ずらす拍数」でそこから前後にずらせます）。ファイル名に設定情報が含まれている場合は自動で読み込み、このパネルは自動的に隠れます。</div>
 </div>
 
 <div class="sectionHeader"><label><input type="checkbox" id="showGameCheckbox"> 音ゲー表示（ノーツ・スコア）</label></div>
@@ -114,9 +134,9 @@
 </div>
 
 <div class="panel">
-  <h3>👆 タップ入力パッド</h3>
+  <h3>👆 タップ入力パッド（キーボードにも対応）</h3>
   <div id="padGrid"></div>
-  <div class="hint">MIDI入力がなくても、ここをタップして叩けます（iRig Pads風 4×4配置）</div>
+  <div class="hint">MIDI入力がなくても、ここをタップ、またはキーボードのキーで練習できます（iRig Pads風 4×4配置）</div>
 </div>
 
 <div class="panel">
@@ -146,21 +166,22 @@
     <select id="kitSelect">
       <option value="acoustic">アコースティック</option>
       <option value="tr909">TR-909（エレクトロニック）</option>
-      <option value="linndrum">LinnDrum LM-2（レトロ）</option>
+      <option value="linndrum" selected>LinnDrum LM-2（レトロ）</option>
     </select>
   </div>
-  <div class="hint">外部MIDI出力を選ぶと、PC/DAWやOS標準の音源（Windowsの場合「Microsoft GS Wavetable Synth」等）に生のMIDI信号を送って鳴らせます。iOSは標準では外部音源を持たないため、GarageBand等のMIDI対応アプリを併用してください。</div>
+  <div class="hint">外部MIDI出力を選ぶと、PC/DAWやOS標準の音源に生のMIDI信号を送って鳴らせます。iOSは標準では外部音源を持たないため、GarageBand等のMIDI対応アプリを併用してください。</div>
   <h3 style="margin-top:12px;">試聴</h3>
   <div id="kitPreviewGrid"></div>
 </div>
 
 <div class="panel">
-  <h3>⏱ 長押し操作の時間設定</h3>
+  <h3>⏱ 長押し・表示位置の設定</h3>
   <div class="row">
     再生開始/停止までの保持時間(秒) <input type="number" id="holdDurationInput" step="0.1" min="0.1" value="0.5">
-    全体譜面でのループ選択に切り替わる保持時間(秒) <input type="number" id="overviewHoldThresholdInput" step="0.1" min="0.1" value="0.5">
+    全体譜面のループ選択に切り替わる保持時間(秒) <input type="number" id="overviewHoldThresholdInput" step="0.1" min="0.1" value="0.5">
+    判定基準線の位置(%) <input type="number" id="hitLinePercentInput" step="0.5" min="0" max="90" value="22.5">
   </div>
-  <div class="hint">MIDI入力/タップパッドを指定秒数以上押し続けると、再生中でなければ再生開始、再生中なら停止します。全体譜面は、指定秒数未満で離すとその場所へ再生位置移動、以上押し続けるとループ範囲のドラッグ選択になります。</div>
+  <div class="hint">MIDI入力/タップパッド/キーボードを指定秒数以上押し続けると、再生中でなければ再生開始、再生中なら停止します。「判定基準線の位置」は楽譜表示（スクロール式）の縦線の左右位置です。</div>
 </div>
 
 <div class="panel">
@@ -181,44 +202,27 @@
   <div id="usageDoc">
     <h4>基本の流れ</h4>
     <ul>
-      <li>上部の「ファイルを選択」からMIDIファイルを読み込みます。</li>
-      <li>▶再生／■停止ボタン、またはMIDI機器/タップパッドの長押しで再生を開始・停止できます（長押しの秒数は「長押し操作の時間設定」で調整可）。</li>
-      <li>短く叩いた場合は再生中でなければ音の確認だけが鳴り、再生は始まりません。</li>
+      <li>ファイルを選択するか、右のラジオボタンでサンプルパターン（8ビート/16ビート/四つ打ち）を選んで練習できます。ファイルを読み込むと自動的に「読み込んだファイル」が選択されます。</li>
+      <li>▶再生／■停止、またはMIDI機器・タップパッド・キーボードの長押しで再生を開始／停止できます。</li>
     </ul>
     <h4>楽譜表示（スクロール式）</h4>
     <ul>
-      <li>現在位置を基準に、直近のノーツが右から左へ流れてくる詳細表示です。判定結果もここに表示されます。</li>
-      <li><span class="legendDot" style="background:#4caf50;"></span>PERFECTは印なし（そのまま通過）</li>
-      <li><span class="legendDot" style="background:#e53935;"></span>赤い太い丸＝早い（EARLY）。ノーツよりやや右にずれて表示</li>
-      <li><span class="legendDot" style="background:#2196f3;"></span>青い太い丸＝遅い（LATE）。ノーツよりやや左にずれて表示</li>
-      <li><span class="legendDot" style="background:#9e9e9e;"></span>灰色の丸＝ミス（叩けなかった）</li>
-      <li>薄く表示される丸は「前回このノーツを叩いたときの判定」の参考表示です（ループ練習用）。</li>
+      <li>縦の基準線を通過するタイミングで叩きます。基準線の位置は「⏱長押し・表示位置の設定」で調整できます。</li>
+      <li><span class="legendDot" style="background:#4caf50;"></span>PERFECTは印なし／<span class="legendDot" style="background:#e53935;"></span>赤＝早い(右にずれて表示)／<span class="legendDot" style="background:#2196f3;"></span>青＝遅い(左にずれて表示)／<span class="legendDot" style="background:#9e9e9e;"></span>灰＝ミス</li>
+      <li>薄い丸は「前回そのノーツを叩いた時の判定」の参考表示です。</li>
     </ul>
-    <h4>全体譜面（俯瞰表示）</h4>
+    <h4>全体譜面</h4>
     <ul>
-      <li>曲全体を小さい単位で表示します。現在再生中の小節がハイライトされます。</li>
-      <li>タップ（短押し）：その小節の頭へ再生位置を移動します。</li>
-      <li>長押ししてそのままドラッグ：ループ範囲を選択します（離した位置までが範囲）。同じ小節内で離すと1小節だけのループになります。</li>
-      <li>ミスした音符は次回そのまま灰色でマークされ続けます（別途ミス一覧はありません）。</li>
+      <li>タップで再生位置移動、長押し＋ドラッグでループ範囲選択。現在位置(青)とループ範囲(黄)は色で区別されます。</li>
+      <li>「区切りの小節数」ごとに赤い太線、「改行の小節数」ごとに改行します（同時の場合は赤線は表示しません）。</li>
     </ul>
-    <h4>小節の区切り位置の調整</h4>
+    <h4>小節位置の調整とファイル名共有</h4>
     <ul>
-      <li>MIDIファイルから正確な小節位置を機械的に読み取るのは難しいため、BPMと1小節の拍数から計算しています。</li>
-      <li>ズレる場合は「楽譜から基準指定」→スクロール式楽譜内の音符を2つクリックしてBPMを実測、「小節の開始基準を指定」→音符を1つクリックして小節1拍目の位置を設定できます。</li>
-      <li>拍/8分/16分のタイミングにぴったり合うノーツがあれば、自動的にそこへ小節位置を補正し、後半でのズレの蓄積を抑えます。</li>
+      <li>BPM/開始位置/区切りなどをクリックや数値で調整後、「設定を含んだファイル名をコピー」でその設定を埋め込んだファイル名をコピーできます。そのファイル名で保存したMIDIを次回読み込むと自動で同じ設定が復元されます。</li>
     </ul>
-    <h4>表示の切り替え</h4>
+    <h4>キーボード操作</h4>
     <ul>
-      <li>「楽譜表示」「全体譜面」「音ゲー表示」はそれぞれ見出し左のチェックボックスでON/OFFできます（暗記練習用）。音ゲー表示をOFFにするとCOMBO/SCOREなどの数値も一緒に隠れます。</li>
-    </ul>
-    <h4>音源設定</h4>
-    <ul>
-      <li>ドラム音の出力方式は「入力通り」（自分が叩いた音だけが鳴る）がデフォルト。「ファイル通り」にするとお手本の演奏が自動で流れます。</li>
-      <li>内蔵キットを3種類から選べ、試聴も可能です。外部MIDI出力を選ぶとPCやDAW側の音源を鳴らせます。</li>
-    </ul>
-    <h4>タップ入力パッド</h4>
-    <ul>
-      <li>MIDI機器がなくても画面のパッドで練習できます。配置はiRig Pads風の4×4です。</li>
+      <li>1,2,3,4 / Q,W,E,R / A,S,D,F / Z,X,C,V が16パッドに対応します（パッド上に表示）。</li>
     </ul>
   </div>
 </div>
@@ -227,29 +231,33 @@
 <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
 <script>
 /* =========================================================
-   レーン定義
+   定数
    ========================================================= */
 const PERFECT_WINDOW = 0.05;
 const GOOD_WINDOW = 0.15;
 const RESULT_COLORS = { PERFECT: '#4caf50', EARLY: '#e53935', LATE: '#2196f3', MISS: '#9e9e9e' };
 
 const LANES = [
-  { name: 'L.Cym',  full: 'レフトシンバル', notes: [49, 52, 55],      color: '#4fc3f7', sample: 'crash',       rate: 1.0,  x: 0, icon: 'cymbal', staffStep: 9  },
-  { name: 'HiHat',  full: 'ハイハット',     notes: [42, 46],          color: '#81d4fa', sample: 'hihatClosed', rate: 1.0,  x: 1, icon: 'hihat',  staffStep: 6  },
-  { name: 'L.Ped',  full: 'レフトペダル',   notes: [44],              color: '#4dd0e1', sample: 'hihatOpen',   rate: 1.0,  x: 2, icon: 'pedal',  staffStep: -1 },
-  { name: 'SN',     full: 'スネア',        notes: [38, 40, 37, 39],  color: '#ff8a65', sample: 'snare',       rate: 1.0,  x: 3, icon: 'snare',  staffStep: 4  },
-  { name: 'HiTom',  full: 'ハイタム',       notes: [48, 50],          color: '#aed581', sample: 'tomHigh',     rate: 1.0,  x: 4, icon: 'tom',    staffStep: 6  },
-  { name: 'Kick',   full: 'バスペダル',     notes: [35, 36],          color: '#ba68c8', sample: 'kick',        rate: 1.0,  x: 5, icon: 'kick',   staffStep: -2 },
-  { name: 'LoTom',  full: 'ロータム',       notes: [45, 47],          color: '#81c784', sample: 'tomLow',      rate: 1.0,  x: 6, icon: 'tom',    staffStep: 1  },
-  { name: 'F.Tom',  full: 'フロアタム',     notes: [41, 43],          color: '#66bb6a', sample: 'tomLow',      rate: 0.8,  x: 7, icon: 'tom',    staffStep: 0  },
-  { name: 'R.Cym',  full: 'ライトシンバル', notes: [51, 53, 57, 59],  color: '#64b5f6', sample: 'ride',        rate: 1.0,  x: 8, icon: 'cymbal', staffStep: 10 },
+  { name: 'L.Cym',  notes: [49, 52, 55],      color: '#4fc3f7', sample: 'crash',       rate: 1.0,  x: 0, icon: 'cymbal', staffStep: 9  },
+  { name: 'HiHat',  notes: [42, 46],          color: '#81d4fa', sample: 'hihatClosed', rate: 1.0,  x: 1, icon: 'hihat',  staffStep: 6  },
+  { name: 'L.Ped',  notes: [44],              color: '#4dd0e1', sample: 'hihatOpen',   rate: 1.0,  x: 2, icon: 'pedal',  staffStep: -1 },
+  { name: 'SN',     notes: [38, 40, 37, 39],  color: '#ff8a65', sample: 'snare',       rate: 1.0,  x: 3, icon: 'snare',  staffStep: 4  },
+  { name: 'HiTom',  notes: [48, 50],          color: '#aed581', sample: 'tomHigh',     rate: 1.0,  x: 4, icon: 'tom',    staffStep: 6  },
+  { name: 'Kick',   notes: [35, 36],          color: '#ba68c8', sample: 'kick',        rate: 1.0,  x: 5, icon: 'kick',   staffStep: -2 },
+  { name: 'LoTom',  notes: [45, 47],          color: '#81c784', sample: 'tomLow',      rate: 1.0,  x: 6, icon: 'tom',    staffStep: 1  },
+  { name: 'F.Tom',  notes: [41, 43],          color: '#66bb6a', sample: 'tomLow',      rate: 0.8,  x: 7, icon: 'tom',    staffStep: 0  },
+  { name: 'R.Cym',  notes: [51, 53, 57, 59],  color: '#64b5f6', sample: 'ride',        rate: 1.0,  x: 8, icon: 'cymbal', staffStep: 10 },
 ];
+const PAD_LAYOUT = ['L.Cym','LoTom','F.Tom','R.Cym','HiHat','HiTom',null,'HiHat',null,'SN','SN',null,null,'L.Ped','Kick',null];
+const KEY_LAYOUT = ['1','2','3','4','q','w','e','r','a','s','d','f','z','x','c','v'];
+
 function laneForNote(noteNum) { for (const l of LANES) if (l.notes.includes(noteNum)) return l; return LANES[3]; }
 function laneByName(name) { return LANES.find(l => l.name === name); }
+function keysForLane(name) { const ks=[]; PAD_LAYOUT.forEach((l,i)=>{ if(l===name) ks.push(KEY_LAYOUT[i]); }); return ks; }
 const safeNum = (v, d = 3) => (typeof v === 'number' && !isNaN(v)) ? v.toFixed(d) : '0';
 
 /* =========================================================
-   MIDI受信／出力
+   DOM要素参照（すべて先頭でまとめて取得）
    ========================================================= */
 const statusEl = document.getElementById('status');
 const devicesEl = document.getElementById('devices');
@@ -258,151 +266,10 @@ const outputModeSelect = document.getElementById('outputModeSelect');
 const drumAudioModeSelect = document.getElementById('drumAudioModeSelect');
 const holdDurationInput = document.getElementById('holdDurationInput');
 const overviewHoldThresholdInput = document.getElementById('overviewHoldThresholdInput');
-
-let midiAccessGlobal = null;
-let selectedOutput = null;
-let isStarting = false;
-let holdTimers = {};
-
-function log(msg, cls) {
-  const line = document.createElement('div');
-  if (cls) line.className = cls;
-  line.textContent = `[${new Date().toLocaleTimeString('ja-JP',{hour12:false})}] ${msg}`;
-  logEl.appendChild(line); logEl.scrollTop = logEl.scrollHeight;
-}
-function updateDeviceList(midiAccess) {
-  const names = [...midiAccess.inputs.values()].map(i => i.name);
-  devicesEl.textContent = '接続デバイス: ' + (names.length ? names.join(', ') : 'なし');
-}
-function refreshOutputOptions(midiAccess) {
-  const current = outputModeSelect.value;
-  outputModeSelect.innerHTML = '<option value="internal">ブラウザ内蔵サンプル音源</option>';
-  for (const output of midiAccess.outputs.values()) {
-    const opt = document.createElement('option');
-    opt.value = output.id; opt.textContent = '外部MIDI出力: ' + output.name;
-    outputModeSelect.appendChild(opt);
-  }
-  if ([...outputModeSelect.options].some(o => o.value === current)) outputModeSelect.value = current;
-}
-outputModeSelect.addEventListener('change', () => {
-  selectedOutput = outputModeSelect.value === 'internal' ? null : (midiAccessGlobal ? midiAccessGlobal.outputs.get(outputModeSelect.value) : null);
-});
-
-function tryStartFromHold() {
-  if (isPlaying || isStarting || !loadedMidi) return;
-  isStarting = true;
-  startPlayback().finally(() => isStarting = false);
-}
-function startHoldTimer(key) {
-  if (holdTimers[key]) return;
-  const ms = Math.max(50, (parseFloat(holdDurationInput.value) || 0.5) * 1000);
-  holdTimers[key] = setTimeout(() => {
-    delete holdTimers[key];
-    if (isPlaying) stopPlayback(); else tryStartFromHold();
-  }, ms);
-}
-function clearHoldTimer(key) { if (holdTimers[key]) { clearTimeout(holdTimers[key]); delete holdTimers[key]; } }
-
-function handleMIDIMessage(event) {
-  const [status, note, velocity] = event.data;
-  const command = status & 0xf0;
-  if (command === 0x90 && velocity > 0) {
-    log(`Note ON  note=${note} velocity=${velocity}`, 'noteon');
-    const lane = laneForNote(note);
-    if (!isPlaying) {
-      playSoundForLane(lane, velocity / 127);
-      if (loadedMidi) startHoldTimer('note' + note);
-    } else {
-      if (drumAudioModeSelect.value === 'input') playSoundForLane(lane, velocity / 127);
-      judgeHitByLane(lane, velocity / 127);
-      startHoldTimer('note' + note);
-    }
-  } else if (command === 0x80 || (command === 0x90 && velocity === 0)) {
-    log(`Note OFF note=${note}`, 'noteoff');
-    clearHoldTimer('note' + note);
-  } else {
-    log(`その他のMIDIメッセージ: [${Array.from(event.data).join(', ')}]`);
-  }
-}
-function onMIDISuccess(midiAccess) {
-  midiAccessGlobal = midiAccess;
-  statusEl.textContent = 'MIDIアクセスOK'; statusEl.className = 'ok';
-  updateDeviceList(midiAccess); refreshOutputOptions(midiAccess);
-  for (const input of midiAccess.inputs.values()) input.onmidimessage = handleMIDIMessage;
-  midiAccess.onstatechange = () => {
-    updateDeviceList(midiAccess); refreshOutputOptions(midiAccess);
-    for (const input of midiAccess.inputs.values()) input.onmidimessage = handleMIDIMessage;
-  };
-}
-function onMIDIFailure(err) { statusEl.textContent = 'MIDIアクセス失敗: ' + err; statusEl.className = 'ng'; }
-if (navigator.requestMIDIAccess) navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
-else { statusEl.textContent = 'このブラウザはWeb MIDI APIに対応していません'; statusEl.className = 'ng'; }
-document.getElementById('rescanMidiBtn').addEventListener('click', () => {
-  if (!navigator.requestMIDIAccess) return;
-  statusEl.textContent = 'MIDIアクセスを再要求中...'; statusEl.className = 'ng';
-  navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
-});
-
-/* =========================================================
-   ドラム音源（内蔵サンプルキット）
-   ========================================================= */
+const hitLinePercentInput = document.getElementById('hitLinePercentInput');
 const loadStateEl = document.getElementById('loadState');
 const kitSelect = document.getElementById('kitSelect');
 const kitPreviewGrid = document.getElementById('kitPreviewGrid');
-
-const KITS = {
-  acoustic: { kick:'https://tonejs.github.io/audio/drum-samples/acoustic-kit/kick.mp3', snare:'https://tonejs.github.io/audio/drum-samples/acoustic-kit/snare.mp3', hihatClosed:'https://tonejs.github.io/audio/drum-samples/acoustic-kit/hihat.mp3', hihatOpen:'https://tonejs.github.io/audio/drum-samples/CR78/hihat.mp3', tomHigh:'https://tonejs.github.io/audio/drum-samples/CR78/tom1.mp3', tomLow:'https://tonejs.github.io/audio/drum-samples/CR78/tom1.mp3', crash:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/cymbal.wav', ride:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/ride.wav' },
-  tr909: { kick:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/kick.wav', snare:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/snare.wav', hihatClosed:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/hihat-closed.wav', hihatOpen:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/hihat-open-1.wav', tomHigh:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/tom-h.wav', tomLow:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/tom-l.wav', crash:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/cymbal.wav', ride:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/ride.wav' },
-  linndrum: { kick:'https://oramics.github.io/sampled/DM/LM-2/samples/kick.wav', snare:'https://oramics.github.io/sampled/DM/LM-2/samples/snare-m.wav', hihatClosed:'https://oramics.github.io/sampled/DM/LM-2/samples/hihat-closed.wav', hihatOpen:'https://oramics.github.io/sampled/DM/LM-2/samples/hihat-open.wav', tomHigh:'https://oramics.github.io/sampled/DM/LM-2/samples/tom-m.wav', tomLow:'https://oramics.github.io/sampled/DM/LM-2/samples/tom-l.wav', crash:'https://oramics.github.io/sampled/DM/LM-2/samples/crash.wav', ride:'https://oramics.github.io/sampled/DM/LM-2/samples/ride.wav' },
-};
-const SAMPLE_SLOT_LABELS = { kick:'キック', snare:'スネア', hihatClosed:'ハイハット(クローズ)', hihatOpen:'ハイハット(オープン)', tomHigh:'ハイタム', tomLow:'ロー/フロアタム', crash:'クラッシュ', ride:'ライド' };
-
-const masterBus = new Tone.Gain(1).toDestination();
-const reverb = new Tone.Reverb({ decay: 1.4, wet: 0.18 }).connect(masterBus);
-const compressor = new Tone.Compressor({ threshold: -18, ratio: 3 });
-compressor.connect(masterBus); compressor.connect(reverb);
-
-let drumPlayers = null;
-function buildKitPreviewButtons() {
-  kitPreviewGrid.innerHTML = '';
-  Object.keys(SAMPLE_SLOT_LABELS).forEach(slot => {
-    const b = document.createElement('button');
-    b.className = 'kitPreviewBtn'; b.textContent = '▶ ' + SAMPLE_SLOT_LABELS[slot];
-    b.onclick = async () => { await Tone.start(); playSample(slot, 0.9); };
-    kitPreviewGrid.appendChild(b);
-  });
-}
-function loadKit(kitName) {
-  if (drumPlayers) drumPlayers.dispose();
-  loadStateEl.textContent = '🔊 音源読み込み中...';
-  drumPlayers = new Tone.Players(KITS[kitName], () => { loadStateEl.textContent = ''; }).connect(compressor);
-}
-kitSelect.addEventListener('change', () => loadKit(kitSelect.value));
-loadKit(kitSelect.value); buildKitPreviewButtons();
-
-function playSample(slot, velocity) {
-  if (!drumPlayers) return;
-  const v = Math.max(0.15, Math.min(1, velocity));
-  try { const p = drumPlayers.player(slot); p.volume.value = Tone.gainToDb(v); p.start(); } catch (e) {}
-}
-function playSoundForLane(lane, velocity) {
-  if (selectedOutput) {
-    const noteNum = lane.notes[0];
-    const vel = Math.max(1, Math.min(127, Math.round(velocity * 127)));
-    try {
-      selectedOutput.send([0x99, noteNum, vel]);
-      setTimeout(() => { try { selectedOutput.send([0x89, noteNum, 0]); } catch (e) {} }, 120);
-    } catch (e) {}
-  } else {
-    if (!drumPlayers) return;
-    const v = Math.max(0.15, Math.min(1, velocity));
-    try { const p = drumPlayers.player(lane.sample); p.volume.value = Tone.gainToDb(v); p.playbackRate = lane.rate; p.start(); } catch (e) {}
-  }
-}
-
-/* =========================================================
-   MIDIファイル読み込み・解析・小節計算
-   ========================================================= */
 const fileInput = document.getElementById('fileInput');
 const midiInfoEl = document.getElementById('midiInfo');
 const playBtn = document.getElementById('playBtn');
@@ -410,33 +277,116 @@ const stopBtn = document.getElementById('stopBtn');
 const timeDisplayEl = document.getElementById('timeDisplay');
 const speedRange = document.getElementById('speedRange');
 const speedLabel = document.getElementById('speedLabel');
+const bpmDisplay = document.getElementById('bpmDisplay');
 const loopCheckbox = document.getElementById('loopCheckbox');
+const loopQuickToggle = document.getElementById('loopQuickToggle');
 const measureStartInput = document.getElementById('measureStartInput');
 const measureCountInput = document.getElementById('measureCountInput');
 const measureTotalEl = document.getElementById('measureTotal');
 const currentMeasureEl = document.getElementById('currentMeasureEl');
-const bpmInput = document.getElementById('bpmInput');
 const beatsPerMeasureInput = document.getElementById('beatsPerMeasureInput');
+const segmentSizeInput = document.getElementById('segmentSizeInput');
+const lineBreakInput = document.getElementById('lineBreakInput');
 const recalcMeasuresBtn = document.getElementById('recalcMeasuresBtn');
 const pickTempoBtn = document.getElementById('pickTempoBtn');
 const refBeatsInput = document.getElementById('refBeatsInput');
+const refStartShiftInput = document.getElementById('refStartShiftInput');
 const pickStartBtn = document.getElementById('pickStartBtn');
 const calibStatus = document.getElementById('calibStatus');
+const copySettingsBtn = document.getElementById('copySettingsBtn');
+const copyStatusEl = document.getElementById('copyStatusEl');
 const showGameCheckbox = document.getElementById('showGameCheckbox');
 const showNotationCheckbox = document.getElementById('showNotationCheckbox');
 const showOverviewCheckbox = document.getElementById('showOverviewCheckbox');
+const showLoopPanelCheckbox = document.getElementById('showLoopPanelCheckbox');
+const showMeasureSettingsCheckbox = document.getElementById('showMeasureSettingsCheckbox');
 const gameWrap = document.getElementById('gameWrap');
 const notationWrap = document.getElementById('notationWrap');
 const overviewWrap = document.getElementById('overviewWrap');
+const loopPanel = document.getElementById('loopPanel');
+const measureSettingsPanel = document.getElementById('measureSettingsPanel');
 const offsetRange = document.getElementById('offsetRange');
 const offsetLabel = document.getElementById('offsetLabel');
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const notationCanvas = document.getElementById('notationCanvas');
+const nctx = notationCanvas.getContext('2d');
+const overviewCanvas = document.getElementById('overviewCanvas');
+const octx = overviewCanvas.getContext('2d');
+const padGrid = document.getElementById('padGrid');
+const comboEl = document.getElementById('comboEl');
+const scoreEl = document.getElementById('scoreEl');
+const perfectEl = document.getElementById('perfectEl');
+const earlyEl = document.getElementById('earlyEl');
+const lateEl = document.getElementById('lateEl');
+const missEl = document.getElementById('missEl');
 
+/* =========================================================
+   状態変数
+   ========================================================= */
 let loadedMidi = null;
 let drumNoteStates = [];
 let melodicTrackStates = [];
 let measures = [];
-let measureStartRef = 0; // 小節開始基準(秒・内部管理)
+let measureStartRef = 0;
+let currentBpm = 120;
+let currentFileBase = 'pattern', currentFileExt = '.mid';
+let isPlaying = false, playbackSpeed = 1.0, songTimeAtLastStart = 0, playStartPerf = 0, sweepIdx = 0;
+let loopModeActive = false, loopStart = 0, loopEnd = Infinity;
+let midiAccessGlobal = null, selectedOutput = null, isStarting = false;
+let holdTimers = {};
+let calibMode = null, tempoClickBuffer = [];
+let combo = 0, score = 0, counts = { perfect: 0, early: 0, late: 0, miss: 0 };
+let floatingTexts = [];
+let ovDrag = null;
+let drumPlayers = null;
 
+/* =========================================================
+   サンプルパターン生成
+   ========================================================= */
+function buildSamplePattern(type) {
+  const beatSec = 0.5; // 120bpm
+  const bars = 8, notes = [];
+  for (let bar = 0; bar < bars; bar++) {
+    const barT = bar * 4 * beatSec;
+    if (type === '8beat') {
+      for (let beat = 0; beat < 4; beat++) {
+        const t = barT + beat * beatSec;
+        notes.push({ time: t, midi: 42, velocity: 0.7, duration: 0.08 });
+        notes.push({ time: t + beatSec / 2, midi: 42, velocity: 0.5, duration: 0.08 });
+        if (beat === 0 || beat === 2) notes.push({ time: t, midi: 36, velocity: 0.9, duration: 0.1 });
+        if (beat === 1 || beat === 3) notes.push({ time: t, midi: 38, velocity: 0.9, duration: 0.1 });
+      }
+    } else if (type === '16beat') {
+      for (let step = 0; step < 16; step++) {
+        const t = barT + step * (beatSec / 4);
+        notes.push({ time: t, midi: 42, velocity: step % 4 === 0 ? 0.85 : 0.5, duration: 0.06 });
+        if (step === 0 || step === 8) notes.push({ time: t, midi: 36, velocity: 0.9, duration: 0.1 });
+        if (step === 4 || step === 12) notes.push({ time: t, midi: 38, velocity: 0.9, duration: 0.1 });
+        if (step === 10) notes.push({ time: t, midi: 36, velocity: 0.7, duration: 0.1 });
+      }
+    } else if (type === 'fourfloor') {
+      for (let beat = 0; beat < 4; beat++) {
+        const t = barT + beat * beatSec;
+        notes.push({ time: t, midi: 36, velocity: 0.9, duration: 0.1 });
+        notes.push({ time: t + beatSec / 2, midi: 46, velocity: 0.6, duration: 0.08 });
+        if (beat === 1 || beat === 3) notes.push({ time: t, midi: 38, velocity: 0.85, duration: 0.1 });
+      }
+    }
+  }
+  return { duration: bars * 4 * beatSec, notes };
+}
+function makeFakeMidi(duration, bpm, beats) {
+  return {
+    duration,
+    header: { ppq: 480, tempos: [{ bpm }], timeSignatures: [{ timeSignature: [beats, 4] }], ticksToSeconds: (t) => t / 480 * (60 / bpm) },
+    tracks: []
+  };
+}
+
+/* =========================================================
+   小節計算
+   ========================================================= */
 function allNoteTimes() {
   const arr = drumNoteStates.map(n => n.time);
   melodicTrackStates.forEach(ts => ts.notes.forEach(n => arr.push(n.time)));
@@ -472,15 +422,19 @@ function computeMeasuresManual(offsetSec, lengthSec, duration) {
   for (let k = 0; k < list.length - 1; k++) list[k].endTime = list[k + 1].startTime;
   return list;
 }
+function updateBpmDisplay() {
+  const eff = currentBpm * (parseFloat(speedRange.value) || 1);
+  bpmDisplay.textContent = `(BPM: ${eff.toFixed(1)})`;
+}
 function recomputeMeasures() {
   if (!loadedMidi) return;
-  const bpm = parseFloat(bpmInput.value) || 120;
   const beats = Math.max(1, parseInt(beatsPerMeasureInput.value) || 4);
-  const measureLen = (60 / bpm) * beats;
+  const measureLen = (60 / currentBpm) * beats;
   measures = computeMeasuresManual(measureStartRef, measureLen, loadedMidi.duration);
   measureTotalEl.textContent = measures.length;
   measureStartInput.max = measures.length;
   resizeOverviewCanvas();
+  updateBpmDisplay();
   redrawIdle();
 }
 function measureIndexAt(time) {
@@ -497,70 +451,173 @@ function getLoopRange() {
   return { start: measures[sIdx].startTime, end: measures[eIdx].endTime, startIdx: sIdx, endIdx: eIdx };
 }
 
+/* =========================================================
+   ファイル名への設定埋め込み
+   ========================================================= */
+function buildSettingsTag() {
+  const parts = [];
+  const bpmVal = Math.round(currentBpm * 10);
+  if (bpmVal !== 1200) parts.push('b' + bpmVal);
+  const beats = parseInt(beatsPerMeasureInput.value) || 4;
+  if (beats !== 4) parts.push('t' + beats);
+  const offsetMs = Math.round((measureStartRef - firstNoteTime()) * 1000);
+  if (offsetMs !== 0) parts.push('o' + offsetMs);
+  const seg = parseInt(segmentSizeInput.value) || 4;
+  if (seg !== 4) parts.push('s' + seg);
+  const lb = parseInt(lineBreakInput.value) || 8;
+  if (lb !== 8) parts.push('l' + lb);
+  if (!parts.length) return '';
+  return '~m' + parts.map(p => '_' + p).join('');
+}
+function parseSettingsTag(name) {
+  const m = name.match(/~m((?:_[a-z]-?\d+)+)/);
+  if (!m) return null;
+  const res = {}; const re = /_([a-z])(-?\d+)/g; let mm;
+  while ((mm = re.exec(m[1]))) res[mm[1]] = parseInt(mm[2]);
+  return res;
+}
+copySettingsBtn.addEventListener('click', async () => {
+  const tag = buildSettingsTag();
+  const newName = currentFileBase + tag + currentFileExt;
+  try { await navigator.clipboard.writeText(newName); copyStatusEl.textContent = 'コピーしました: ' + newName; }
+  catch (e) { copyStatusEl.textContent = '手動でコピーしてください: ' + newName; }
+});
+
+/* =========================================================
+   曲データの適用（ファイル / サンプルパターン共通）
+   ========================================================= */
+function applySongData(midiLike, drumNotesRaw, melodicRaw, label, fileNameForTag) {
+  stopPlayback();
+  loadedMidi = midiLike;
+  drumNoteStates = drumNotesRaw.map(n => ({ time: n.time, midi: n.midi, velocity: n.velocity, duration: n.duration, lane: laneForNote(n.midi), judged: false, result: null, lastResult: null }));
+  melodicTrackStates = melodicRaw;
+  drumNoteStates.sort((a, b) => a.time - b.time);
+  melodicTrackStates.forEach(ts => ts.notes.sort((a, b) => a.time - b.time));
+
+  const bpmGuess = (midiLike.header.tempos && midiLike.header.tempos[0] && midiLike.header.tempos[0].bpm) || 120;
+  const tsEntry = (midiLike.header.timeSignatures && midiLike.header.timeSignatures.length) ? midiLike.header.timeSignatures[0].timeSignature : [4, 4];
+
+  currentBpm = bpmGuess;
+  beatsPerMeasureInput.value = tsEntry[0];
+  segmentSizeInput.value = 4;
+  lineBreakInput.value = 8;
+  measureStartRef = firstNoteTime();
+
+  let autoApplied = false;
+  if (fileNameForTag) {
+    const tag = parseSettingsTag(fileNameForTag);
+    if (tag) {
+      if (tag.b !== undefined) currentBpm = tag.b / 10;
+      if (tag.t !== undefined) beatsPerMeasureInput.value = tag.t;
+      if (tag.o !== undefined) measureStartRef = firstNoteTime() + tag.o / 1000;
+      if (tag.s !== undefined) segmentSizeInput.value = tag.s;
+      if (tag.l !== undefined) lineBreakInput.value = tag.l;
+      autoApplied = true;
+    }
+  }
+  recomputeMeasures();
+  if (autoApplied) { showMeasureSettingsCheckbox.checked = false; applyVisibility(); calibStatus.textContent = 'ファイル名から設定を自動反映しました'; }
+
+  measureStartInput.value = 1; measureCountInput.value = 1; songTimeAtLastStart = 0;
+
+  const trackSummary = midiLike.tracks.length
+    ? midiLike.tracks.map((t, i) => `Track ${i}: ch=${t.channel} ${t.name || '(no name)'} - ${(t.notes || []).length} notes${t.channel === 9 ? '  ← 打楽器(表示対象)' : ''}`).join('\n')
+    : '(サンプルパターン)';
+  midiInfoEl.textContent = `${label}\n長さ: ${safeNum(midiLike.duration, 2)}秒 / 全${measures.length}小節\n${trackSummary}`;
+
+  playBtn.disabled = false; stopBtn.disabled = true;
+  timeDisplayEl.textContent = `0.0s / ${safeNum(midiLike.duration, 1)}s`;
+  resetScore(); redrawIdle();
+}
+
 fileInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   try {
-    stopPlayback();
     const arrayBuffer = await file.arrayBuffer();
     const midi = new Midi(arrayBuffer);
-    loadedMidi = midi;
-
-    drumNoteStates = []; melodicTrackStates = [];
+    const drumNotesRaw = [], melodicRaw = [];
     midi.tracks.forEach((t) => {
       const notes = t.notes || [];
       if (notes.length === 0) return;
-      if (t.channel === 9) {
-        notes.forEach(n => drumNoteStates.push({ time: n.time, midi: n.midi, velocity: n.velocity, duration: n.duration, lane: laneForNote(n.midi), judged: false, result: null, lastResult: null }));
-      } else {
-        melodicTrackStates.push({ channel: t.channel, notes: notes.map(n => ({ time: n.time, name: n.name, midi: n.midi, duration: n.duration, velocity: n.velocity })), synth: null, idx: 0 });
-      }
+      if (t.channel === 9) notes.forEach(n => drumNotesRaw.push({ time: n.time, midi: n.midi, velocity: n.velocity, duration: n.duration }));
+      else melodicRaw.push({ channel: t.channel, notes: notes.map(n => ({ time: n.time, name: n.name, midi: n.midi, duration: n.duration, velocity: n.velocity })), synth: null, idx: 0 });
     });
-    drumNoteStates.sort((a, b) => a.time - b.time);
-    melodicTrackStates.forEach(ts => ts.notes.sort((a, b) => a.time - b.time));
-
-    const bpmGuess = (midi.header.tempos && midi.header.tempos[0] && midi.header.tempos[0].bpm) || 120;
-    bpmInput.value = bpmGuess.toFixed(1);
-    const tsEntry = (midi.header.timeSignatures && midi.header.timeSignatures.length) ? midi.header.timeSignatures[0].timeSignature : [4, 4];
-    beatsPerMeasureInput.value = tsEntry[0];
-    measureStartRef = firstNoteTime();
-    recomputeMeasures();
-
-    measureStartInput.value = 1;
-    measureCountInput.value = 1;
-    songTimeAtLastStart = 0;
-
-    const trackSummary = midi.tracks.map((t, i) => `Track ${i}: ch=${t.channel} ${t.name || '(no name)'} - ${(t.notes || []).length} notes${t.channel === 9 ? '  ← 打楽器(表示対象)' : ''}`).join('\n');
-    midiInfoEl.textContent = `ファイル: ${file.name}\n長さ: ${safeNum(midi.duration, 2)}秒 / 全${measures.length}小節\nトラック数: ${midi.tracks.length}\n打楽器ノート数: ${drumNoteStates.length}\n${trackSummary}`;
-
-    playBtn.disabled = false; stopBtn.disabled = true;
-    timeDisplayEl.textContent = `0.0s / ${safeNum(midi.duration, 1)}s`;
-    resetScore(); redrawIdle();
+    const dotIdx = file.name.lastIndexOf('.');
+    currentFileBase = dotIdx >= 0 ? file.name.slice(0, dotIdx) : file.name;
+    currentFileExt = dotIdx >= 0 ? file.name.slice(dotIdx) : '.mid';
+    applySongData(midi, drumNotesRaw, melodicRaw, `ファイル: ${file.name}`, file.name);
+    document.getElementById('patternFile').checked = true;
   } catch (err) {
     midiInfoEl.textContent = 'MIDIファイルの読み込みに失敗: ' + err;
     console.error(err);
   }
 });
+document.querySelectorAll('input[name=pattern]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    if (!radio.checked || radio.value === 'file') return;
+    const p = buildSamplePattern(radio.value);
+    currentFileBase = radio.value; currentFileExt = '.mid';
+    applySongData(makeFakeMidi(p.duration, 120, 4), p.notes, [], `サンプルパターン: ${radio.labels[0].textContent.trim()}`, null);
+  });
+});
 
 recalcMeasuresBtn.addEventListener('click', recomputeMeasures);
 [loopCheckbox, measureStartInput, measureCountInput].forEach(el => el.addEventListener('input', redrawIdle));
+loopQuickToggle.addEventListener('change', () => { loopCheckbox.checked = loopQuickToggle.checked; redrawIdle(); });
+loopCheckbox.addEventListener('change', () => { loopQuickToggle.checked = loopCheckbox.checked; redrawIdle(); });
 
-let calibMode = null; // null | 'tempo' | 'start'  (実際のイベント登録は notationCanvas 定義後に行う)
-let tempoClickBuffer = [];
-pickTempoBtn.addEventListener('click', () => { calibMode = 'tempo'; tempoClickBuffer = []; calibStatus.textContent = '楽譜上の音符を2つクリックしてください（1つ目をクリックしました: まだ）'; });
+pickTempoBtn.addEventListener('click', () => { calibMode = 'tempo'; tempoClickBuffer = []; calibStatus.textContent = '楽譜上の音符を2つクリックしてください'; });
 pickStartBtn.addEventListener('click', () => { calibMode = 'start'; calibStatus.textContent = '楽譜上の音符を1つクリックして、小節の開始基準にしてください'; });
+
+function findNoteNearClick(clickX, clickY) {
+  const currentTime = isPlaying ? getCurrentSongTime() : songTimeAtLastStart;
+  const nowX = getNowX();
+  let best = null, bestDist = 16;
+  for (const n of drumNoteStates) {
+    const dt = n.time - currentTime;
+    const x = nowX + dt * N_PIXELS_PER_SEC;
+    if (x < -20 || x > notationCanvas.width + 20) continue;
+    const y = staffY(n.lane.staffStep);
+    const dist = Math.hypot(x - clickX, y - clickY);
+    if (dist < bestDist) { bestDist = dist; best = n; }
+  }
+  return best;
+}
+function notationClientToCanvas(e) {
+  const rect = notationCanvas.getBoundingClientRect();
+  return { x: (e.clientX - rect.left) * (notationCanvas.width / rect.width), y: (e.clientY - rect.top) * (notationCanvas.height / rect.height) };
+}
+notationCanvas.addEventListener('pointerdown', (e) => {
+  if (!calibMode) return;
+  const { x, y } = notationClientToCanvas(e);
+  const note = findNoteNearClick(x, y);
+  if (!note) return;
+  if (calibMode === 'tempo') {
+    tempoClickBuffer.push(note.time);
+    if (tempoClickBuffer.length === 1) { calibStatus.textContent = '1つ目を取得。もう1つ音符をクリックしてください'; }
+    else {
+      const deltaSec = Math.abs(tempoClickBuffer[1] - tempoClickBuffer[0]);
+      const refBeats = parseFloat(refBeatsInput.value) || 1;
+      if (deltaSec > 0.01) {
+        currentBpm = 60 / (deltaSec / refBeats);
+        recomputeMeasures();
+        calibStatus.textContent = `テンポを検出しました: ${currentBpm.toFixed(1)} BPM`;
+      }
+      calibMode = null; tempoClickBuffer = [];
+    }
+  } else if (calibMode === 'start') {
+    const shiftBeats = parseFloat(refStartShiftInput.value) || 0;
+    measureStartRef = note.time + shiftBeats * (60 / currentBpm);
+    recomputeMeasures();
+    calibStatus.textContent = `小節の開始基準を設定しました（${safeNum(measureStartRef,2)}s地点）`;
+    calibMode = null;
+  }
+});
 
 /* =========================================================
    再生クロック
    ========================================================= */
-let isPlaying = false;
-let playbackSpeed = 1.0;
-let songTimeAtLastStart = 0;
-let playStartPerf = 0;
-let sweepIdx = 0;
-let loopModeActive = false;
-let loopStart = 0, loopEnd = Infinity;
-
 function getCurrentSongTime() { return isPlaying ? songTimeAtLastStart + (performance.now() - playStartPerf) / 1000 * playbackSpeed : songTimeAtLastStart; }
 function redrawIdle() {
   const t = isPlaying ? getCurrentSongTime() : songTimeAtLastStart;
@@ -570,18 +627,20 @@ function applyVisibility() {
   notationWrap.style.display = showNotationCheckbox.checked ? 'flex' : 'none';
   overviewWrap.style.display = showOverviewCheckbox.checked ? 'flex' : 'none';
   gameWrap.classList.toggle('show', showGameCheckbox.checked);
+  loopPanel.style.display = showLoopPanelCheckbox.checked ? 'block' : 'none';
+  measureSettingsPanel.style.display = showMeasureSettingsCheckbox.checked ? 'block' : 'none';
 }
-showNotationCheckbox.addEventListener('change', () => { applyVisibility(); redrawIdle(); });
-showOverviewCheckbox.addEventListener('change', () => { applyVisibility(); redrawIdle(); });
-showGameCheckbox.addEventListener('change', () => { applyVisibility(); redrawIdle(); });
+[showNotationCheckbox, showOverviewCheckbox, showGameCheckbox, showLoopPanelCheckbox, showMeasureSettingsCheckbox].forEach(el => el.addEventListener('change', () => { applyVisibility(); redrawIdle(); }));
 
 speedRange.addEventListener('input', () => {
   const newSpeed = parseFloat(speedRange.value);
   speedLabel.textContent = 'x' + newSpeed.toFixed(1);
   if (isPlaying) { songTimeAtLastStart = getCurrentSongTime(); playStartPerf = performance.now(); }
   playbackSpeed = newSpeed;
+  updateBpmDisplay();
 });
 offsetRange.addEventListener('input', () => { offsetLabel.textContent = offsetRange.value + 'ms'; });
+hitLinePercentInput.addEventListener('input', redrawIdle);
 
 function pointerIndexAtTime(arr, time) { const idx = arr.findIndex(x => x.time >= time); return idx < 0 ? arr.length : idx; }
 function rewindPointersTo(time) {
@@ -596,6 +655,124 @@ function seekTo(t) {
 }
 
 /* =========================================================
+   MIDI受信／出力
+   ========================================================= */
+function log(msg, cls) {
+  const line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.textContent = `[${new Date().toLocaleTimeString('ja-JP',{hour12:false})}] ${msg}`;
+  logEl.appendChild(line); logEl.scrollTop = logEl.scrollHeight;
+}
+function updateDeviceList(midiAccess) {
+  const names = [...midiAccess.inputs.values()].map(i => i.name);
+  devicesEl.textContent = '接続デバイス: ' + (names.length ? names.join(', ') : 'なし');
+}
+function refreshOutputOptions(midiAccess) {
+  const current = outputModeSelect.value;
+  outputModeSelect.innerHTML = '<option value="internal">ブラウザ内蔵サンプル音源</option>';
+  for (const output of midiAccess.outputs.values()) {
+    const opt = document.createElement('option');
+    opt.value = output.id; opt.textContent = '外部MIDI出力: ' + output.name;
+    outputModeSelect.appendChild(opt);
+  }
+  if ([...outputModeSelect.options].some(o => o.value === current)) outputModeSelect.value = current;
+}
+outputModeSelect.addEventListener('change', () => {
+  selectedOutput = outputModeSelect.value === 'internal' ? null : (midiAccessGlobal ? midiAccessGlobal.outputs.get(outputModeSelect.value) : null);
+});
+function tryStartFromHold() {
+  if (isPlaying || isStarting || !loadedMidi) return;
+  isStarting = true;
+  startPlayback().finally(() => isStarting = false);
+}
+function startHoldTimer(key) {
+  if (holdTimers[key]) return;
+  const ms = Math.max(50, (parseFloat(holdDurationInput.value) || 0.5) * 1000);
+  holdTimers[key] = setTimeout(() => { delete holdTimers[key]; if (isPlaying) stopPlayback(); else tryStartFromHold(); }, ms);
+}
+function clearHoldTimer(key) { if (holdTimers[key]) { clearTimeout(holdTimers[key]); delete holdTimers[key]; } }
+
+function handleMIDIMessage(event) {
+  const [status, note, velocity] = event.data;
+  const command = status & 0xf0;
+  if (command === 0x90 && velocity > 0) {
+    log(`Note ON  note=${note} velocity=${velocity}`, 'noteon');
+    const lane = laneForNote(note);
+    if (!isPlaying) { playSoundForLane(lane, velocity / 127); if (loadedMidi) startHoldTimer('note' + note); }
+    else { if (drumAudioModeSelect.value === 'input') playSoundForLane(lane, velocity / 127); judgeHitByLane(lane, velocity / 127); startHoldTimer('note' + note); }
+  } else if (command === 0x80 || (command === 0x90 && velocity === 0)) {
+    log(`Note OFF note=${note}`, 'noteoff'); clearHoldTimer('note' + note);
+  } else { log(`その他のMIDIメッセージ: [${Array.from(event.data).join(', ')}]`); }
+}
+function onMIDISuccess(midiAccess) {
+  midiAccessGlobal = midiAccess;
+  statusEl.textContent = 'MIDIアクセスOK'; statusEl.className = 'ok';
+  updateDeviceList(midiAccess); refreshOutputOptions(midiAccess);
+  for (const input of midiAccess.inputs.values()) input.onmidimessage = handleMIDIMessage;
+  midiAccess.onstatechange = () => {
+    updateDeviceList(midiAccess); refreshOutputOptions(midiAccess);
+    for (const input of midiAccess.inputs.values()) input.onmidimessage = handleMIDIMessage;
+  };
+}
+function onMIDIFailure(err) { statusEl.textContent = 'MIDIアクセス失敗: ' + err; statusEl.className = 'ng'; }
+if (navigator.requestMIDIAccess) navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+else { statusEl.textContent = 'このブラウザはWeb MIDI APIに対応していません'; statusEl.className = 'ng'; }
+document.getElementById('rescanMidiBtn').addEventListener('click', () => {
+  if (!navigator.requestMIDIAccess) return;
+  statusEl.textContent = 'MIDIアクセスを再要求中...'; statusEl.className = 'ng';
+  navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+});
+
+/* =========================================================
+   ドラム音源
+   ========================================================= */
+const KITS = {
+  acoustic: { kick:'https://tonejs.github.io/audio/drum-samples/acoustic-kit/kick.mp3', snare:'https://tonejs.github.io/audio/drum-samples/acoustic-kit/snare.mp3', hihatClosed:'https://tonejs.github.io/audio/drum-samples/acoustic-kit/hihat.mp3', hihatOpen:'https://tonejs.github.io/audio/drum-samples/CR78/hihat.mp3', tomHigh:'https://tonejs.github.io/audio/drum-samples/CR78/tom1.mp3', tomLow:'https://tonejs.github.io/audio/drum-samples/CR78/tom1.mp3', crash:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/cymbal.wav', ride:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/ride.wav' },
+  tr909: { kick:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/kick.wav', snare:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/snare.wav', hihatClosed:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/hihat-closed.wav', hihatOpen:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/hihat-open-1.wav', tomHigh:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/tom-h.wav', tomLow:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/tom-l.wav', crash:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/cymbal.wav', ride:'https://oramics.github.io/sampled/DM/TR-909/Detroit/samples/ride.wav' },
+  linndrum: { kick:'https://oramics.github.io/sampled/DM/LM-2/samples/kick.wav', snare:'https://oramics.github.io/sampled/DM/LM-2/samples/snare-m.wav', hihatClosed:'https://oramics.github.io/sampled/DM/LM-2/samples/hihat-closed.wav', hihatOpen:'https://oramics.github.io/sampled/DM/LM-2/samples/hihat-open.wav', tomHigh:'https://oramics.github.io/sampled/DM/LM-2/samples/tom-m.wav', tomLow:'https://oramics.github.io/sampled/DM/LM-2/samples/tom-l.wav', crash:'https://oramics.github.io/sampled/DM/LM-2/samples/crash.wav', ride:'https://oramics.github.io/sampled/DM/LM-2/samples/ride.wav' },
+};
+const SAMPLE_SLOT_LABELS = { kick:'キック', snare:'スネア', hihatClosed:'ハイハット(クローズ)', hihatOpen:'ハイハット(オープン)', tomHigh:'ハイタム', tomLow:'ロー/フロアタム', crash:'クラッシュ', ride:'ライド' };
+
+const masterBus = new Tone.Gain(1).toDestination();
+const reverb = new Tone.Reverb({ decay: 1.4, wet: 0.18 }).connect(masterBus);
+const compressor = new Tone.Compressor({ threshold: -18, ratio: 3 });
+compressor.connect(masterBus); compressor.connect(reverb);
+
+function buildKitPreviewButtons() {
+  kitPreviewGrid.innerHTML = '';
+  Object.keys(SAMPLE_SLOT_LABELS).forEach(slot => {
+    const b = document.createElement('button');
+    b.className = 'kitPreviewBtn'; b.textContent = '▶ ' + SAMPLE_SLOT_LABELS[slot];
+    b.onclick = async () => { await Tone.start(); playSample(slot, 0.9); };
+    kitPreviewGrid.appendChild(b);
+  });
+}
+function loadKit(kitName) {
+  if (drumPlayers) drumPlayers.dispose();
+  loadStateEl.textContent = '🔊 音源読み込み中...';
+  drumPlayers = new Tone.Players(KITS[kitName], () => { loadStateEl.textContent = ''; }).connect(compressor);
+}
+kitSelect.addEventListener('change', () => loadKit(kitSelect.value));
+loadKit(kitSelect.value); buildKitPreviewButtons();
+
+function playSample(slot, velocity) {
+  if (!drumPlayers) return;
+  const v = Math.max(0.15, Math.min(1, velocity));
+  try { const p = drumPlayers.player(slot); p.volume.value = Tone.gainToDb(v); p.start(); } catch (e) {}
+}
+function playSoundForLane(lane, velocity) {
+  if (selectedOutput) {
+    const noteNum = lane.notes[0];
+    const vel = Math.max(1, Math.min(127, Math.round(velocity * 127)));
+    try { selectedOutput.send([0x99, noteNum, vel]); setTimeout(() => { try { selectedOutput.send([0x89, noteNum, 0]); } catch (e) {} }, 120); } catch (e) {}
+  } else {
+    if (!drumPlayers) return;
+    const v = Math.max(0.15, Math.min(1, velocity));
+    try { const p = drumPlayers.player(lane.sample); p.volume.value = Tone.gainToDb(v); p.playbackRate = lane.rate; p.start(); } catch (e) {}
+  }
+}
+
+/* =========================================================
    再生開始/停止
    ========================================================= */
 async function startPlayback() {
@@ -603,25 +780,20 @@ async function startPlayback() {
   loadStateEl.textContent = '🔊 音源読み込み確認中...';
   await Tone.start(); await Tone.loaded();
   loadStateEl.textContent = '';
-
   melodicTrackStates.forEach(ts => {
     const synth = new Tone.PolySynth(Tone.FMSynth, { envelope: { attack: 0.01, decay: 0.15, sustain: 0.25, release: 0.4 }, modulationIndex: 3 });
     synth.volume.value = -10; synth.connect(masterBus); synth.connect(reverb);
     ts.synth = synth;
   });
   drumNoteStates.forEach(n => { if (n.judged) n.lastResult = n.result; n.judged = false; n.result = null; });
-
   const range = getLoopRange();
   loopModeActive = !!range;
-  if (loopModeActive) { loopStart = range.start; loopEnd = range.end; }
-  else { loopStart = 0; loopEnd = loadedMidi.duration; }
-
+  if (loopModeActive) { loopStart = range.start; loopEnd = range.end; } else { loopStart = 0; loopEnd = loadedMidi.duration; }
   playbackSpeed = parseFloat(speedRange.value);
   const startAt = loopModeActive ? loopStart : songTimeAtLastStart;
   songTimeAtLastStart = startAt; playStartPerf = performance.now();
   rewindPointersTo(startAt);
   isPlaying = true;
-
   resetScore();
   playBtn.disabled = true; stopBtn.disabled = false;
   requestAnimationFrame(gameLoop);
@@ -641,16 +813,6 @@ stopBtn.addEventListener('click', stopPlayback);
 /* =========================================================
    スコア / 判定
    ========================================================= */
-const comboEl = document.getElementById('comboEl');
-const scoreEl = document.getElementById('scoreEl');
-const perfectEl = document.getElementById('perfectEl');
-const earlyEl = document.getElementById('earlyEl');
-const lateEl = document.getElementById('lateEl');
-const missEl = document.getElementById('missEl');
-
-let combo = 0, score = 0, counts = { perfect: 0, early: 0, late: 0, miss: 0 };
-let floatingTexts = [];
-
 function resetScore() { combo = 0; score = 0; counts = { perfect: 0, early: 0, late: 0, miss: 0 }; floatingTexts = []; updateScoreHUD(); }
 function updateScoreHUD() {
   comboEl.textContent = combo; scoreEl.textContent = score;
@@ -662,8 +824,7 @@ function judgeHitByLane(lane, velocity) {
   for (const n of drumNoteStates) {
     if (n.judged) continue;
     if (n.lane.name !== lane.name) continue;
-    const signed = currentTime - n.time;
-    const abs = Math.abs(signed);
+    const signed = currentTime - n.time, abs = Math.abs(signed);
     if (abs > GOOD_WINDOW) continue;
     if (abs < bestAbs) { best = n; bestAbs = abs; bestSigned = signed; }
   }
@@ -682,87 +843,111 @@ function applyJudgment(result, lane) {
 }
 
 /* =========================================================
-   タップ入力パッド（4x4）
+   パッド／キーボード入力
    ========================================================= */
-const PAD_LAYOUT = ['L.Cym','LoTom','F.Tom','R.Cym','HiHat','HiTom',null,'HiHat',null,'SN','SN',null,null,'L.Ped','Kick',null];
-const padGrid = document.getElementById('padGrid');
-PAD_LAYOUT.forEach(laneName => {
+function padDown(lane) {
+  if (!isPlaying) { playSoundForLane(lane, 0.9); if (loadedMidi) startHoldTimer('pad' + lane.name); }
+  else { if (drumAudioModeSelect.value === 'input') playSoundForLane(lane, 0.9); judgeHitByLane(lane, 0.9); startHoldTimer('pad' + lane.name); }
+}
+function padUp(lane) { clearHoldTimer('pad' + lane.name); }
+
+const padButtons = {};
+PAD_LAYOUT.forEach((laneName, i) => {
   const btn = document.createElement('button');
   if (!laneName) { btn.className = 'padBtn empty'; padGrid.appendChild(btn); return; }
   const lane = laneByName(laneName);
-  btn.className = 'padBtn'; btn.style.background = lane.color; btn.textContent = lane.name;
-  btn.addEventListener('pointerdown', async () => {
-    await Tone.start();
-    if (!isPlaying) { playSoundForLane(lane, 0.9); if (loadedMidi) startHoldTimer('pad' + lane.name); }
-    else { if (drumAudioModeSelect.value === 'input') playSoundForLane(lane, 0.9); judgeHitByLane(lane, 0.9); startHoldTimer('pad' + lane.name); }
-  });
-  btn.addEventListener('pointerup', () => clearHoldTimer('pad' + lane.name));
-  btn.addEventListener('pointerleave', () => clearHoldTimer('pad' + lane.name));
+  btn.className = 'padBtn'; btn.style.background = lane.color;
+  btn.innerHTML = `${lane.name}<span class="keyLabel">${KEY_LAYOUT[i].toUpperCase()}</span>`;
+  btn.addEventListener('pointerdown', async () => { await Tone.start(); padDown(lane); btn.classList.add('pressed'); });
+  btn.addEventListener('pointerup', () => { padUp(lane); btn.classList.remove('pressed'); });
+  btn.addEventListener('pointerleave', () => { padUp(lane); btn.classList.remove('pressed'); });
   padGrid.appendChild(btn);
+  if (!padButtons[i]) padButtons[i] = btn;
+});
+const keyToIndex = {};
+KEY_LAYOUT.forEach((k, i) => { keyToIndex[k] = i; });
+const keysHeld = {};
+window.addEventListener('keydown', async (e) => {
+  const k = e.key.toLowerCase();
+  if (keyToIndex[k] === undefined || keysHeld[k]) return;
+  const laneName = PAD_LAYOUT[keyToIndex[k]];
+  if (!laneName) return;
+  keysHeld[k] = true;
+  await Tone.start();
+  const lane = laneByName(laneName);
+  padDown(lane);
+  const btn = padButtons[keyToIndex[k]]; if (btn) btn.classList.add('pressed');
+});
+window.addEventListener('keyup', (e) => {
+  const k = e.key.toLowerCase();
+  if (keyToIndex[k] === undefined) return;
+  delete keysHeld[k];
+  const laneName = PAD_LAYOUT[keyToIndex[k]];
+  if (!laneName) return;
+  padUp(laneByName(laneName));
+  const btn = padButtons[keyToIndex[k]]; if (btn) btn.classList.remove('pressed');
 });
 
 /* =========================================================
    アイコン描画
    ========================================================= */
-function drawCymbalIcon(ctx, cx, cy, r, color) {
-  const grad = ctx.createRadialGradient(cx - r*0.3, cy - r*0.15, r*0.1, cx, cy, r);
+function drawCymbalIcon(pctx, cx, cy, r, color) {
+  const grad = pctx.createRadialGradient(cx - r*0.3, cy - r*0.15, r*0.1, cx, cy, r);
   grad.addColorStop(0,'#fff9e0'); grad.addColorStop(0.5,color); grad.addColorStop(1,'#8d6e2f');
-  ctx.save(); ctx.beginPath(); ctx.ellipse(cx,cy,r,r*0.38,0,0,Math.PI*2); ctx.fillStyle=grad; ctx.fill();
-  ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=1; ctx.stroke();
-  ctx.beginPath(); ctx.ellipse(cx,cy,r*0.3,r*0.13,0,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.2)'; ctx.fill();
-  ctx.restore();
+  pctx.save(); pctx.beginPath(); pctx.ellipse(cx,cy,r,r*0.38,0,0,Math.PI*2); pctx.fillStyle=grad; pctx.fill();
+  pctx.strokeStyle='rgba(0,0,0,0.3)'; pctx.lineWidth=1; pctx.stroke();
+  pctx.beginPath(); pctx.ellipse(cx,cy,r*0.3,r*0.13,0,0,Math.PI*2); pctx.fillStyle='rgba(0,0,0,0.2)'; pctx.fill();
+  pctx.restore();
 }
-function drawHiHatIcon(ctx, cx, cy, r, color) {
-  drawCymbalIcon(ctx, cx, cy + r*0.25, r*0.9, '#cfd8dc');
-  drawCymbalIcon(ctx, cx, cy - r*0.15, r, color);
-  ctx.save(); ctx.strokeStyle='#888'; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(cx,cy+r*0.5); ctx.lineTo(cx,cy+r*1.1); ctx.stroke(); ctx.restore();
+function drawHiHatIcon(pctx, cx, cy, r, color) {
+  drawCymbalIcon(pctx, cx, cy + r*0.25, r*0.9, '#cfd8dc');
+  drawCymbalIcon(pctx, cx, cy - r*0.15, r, color);
+  pctx.save(); pctx.strokeStyle='#888'; pctx.lineWidth=2;
+  pctx.beginPath(); pctx.moveTo(cx,cy+r*0.5); pctx.lineTo(cx,cy+r*1.1); pctx.stroke(); pctx.restore();
 }
-function drawPedalIcon(ctx, cx, cy, r, color) {
-  ctx.save(); ctx.fillStyle=color; ctx.fillRect(cx-r*0.5,cy,r,r*0.35);
-  ctx.strokeStyle='#333'; ctx.strokeRect(cx-r*0.5,cy,r,r*0.35);
-  ctx.beginPath(); ctx.moveTo(cx-r*0.3,cy); ctx.lineTo(cx,cy-r*0.5); ctx.lineTo(cx+r*0.3,cy); ctx.closePath();
-  ctx.fillStyle='#999'; ctx.fill(); ctx.restore();
+function drawPedalIcon(pctx, cx, cy, r, color) {
+  pctx.save(); pctx.fillStyle=color; pctx.fillRect(cx-r*0.5,cy,r,r*0.35);
+  pctx.strokeStyle='#333'; pctx.strokeRect(cx-r*0.5,cy,r,r*0.35);
+  pctx.beginPath(); pctx.moveTo(cx-r*0.3,cy); pctx.lineTo(cx,cy-r*0.5); pctx.lineTo(cx+r*0.3,cy); pctx.closePath();
+  pctx.fillStyle='#999'; pctx.fill(); pctx.restore();
 }
-function drawDrumIcon(ctx, cx, cy, r, color, hr) {
-  const h = r*hr; ctx.save();
-  const bodyGrad = ctx.createLinearGradient(cx-r,cy,cx+r,cy);
+function drawDrumIcon(pctx, cx, cy, r, color, hr) {
+  const h = r*hr; pctx.save();
+  const bodyGrad = pctx.createLinearGradient(cx-r,cy,cx+r,cy);
   bodyGrad.addColorStop(0,'#3a3a3a'); bodyGrad.addColorStop(0.5,color); bodyGrad.addColorStop(1,'#3a3a3a');
-  ctx.fillStyle=bodyGrad; ctx.fillRect(cx-r,cy-h/2,r*2,h);
-  ctx.beginPath(); ctx.ellipse(cx,cy-h/2,r,r*0.3,0,0,Math.PI*2);
-  const headGrad = ctx.createRadialGradient(cx,cy-h/2,r*0.1,cx,cy-h/2,r);
+  pctx.fillStyle=bodyGrad; pctx.fillRect(cx-r,cy-h/2,r*2,h);
+  pctx.beginPath(); pctx.ellipse(cx,cy-h/2,r,r*0.3,0,0,Math.PI*2);
+  const headGrad = pctx.createRadialGradient(cx,cy-h/2,r*0.1,cx,cy-h/2,r);
   headGrad.addColorStop(0,'#fff'); headGrad.addColorStop(1,'#cfd8dc');
-  ctx.fillStyle=headGrad; ctx.fill(); ctx.strokeStyle='#888'; ctx.stroke();
-  ctx.beginPath(); ctx.ellipse(cx,cy+h/2,r,r*0.3,0,0,Math.PI); ctx.strokeStyle='rgba(0,0,0,0.4)'; ctx.stroke();
-  ctx.restore();
+  pctx.fillStyle=headGrad; pctx.fill(); pctx.strokeStyle='#888'; pctx.stroke();
+  pctx.beginPath(); pctx.ellipse(cx,cy+h/2,r,r*0.3,0,0,Math.PI); pctx.strokeStyle='rgba(0,0,0,0.4)'; pctx.stroke();
+  pctx.restore();
 }
-function drawKickIcon(ctx, cx, cy, r, color) {
-  ctx.save();
-  const grad = ctx.createRadialGradient(cx,cy,r*0.2,cx,cy,r);
+function drawKickIcon(pctx, cx, cy, r, color) {
+  pctx.save();
+  const grad = pctx.createRadialGradient(cx,cy,r*0.2,cx,cy,r);
   grad.addColorStop(0,'#fff'); grad.addColorStop(0.6,'#e0e0e0'); grad.addColorStop(1,color);
-  ctx.beginPath(); ctx.ellipse(cx,cy,r,r*0.85,0,0,Math.PI*2); ctx.fillStyle=grad; ctx.fill();
-  ctx.strokeStyle='#555'; ctx.lineWidth=3; ctx.stroke();
-  ctx.beginPath(); ctx.ellipse(cx,cy,r*0.4,r*0.35,0,0,Math.PI*2); ctx.fillStyle='#222'; ctx.fill();
-  ctx.restore();
+  pctx.beginPath(); pctx.ellipse(cx,cy,r,r*0.85,0,0,Math.PI*2); pctx.fillStyle=grad; pctx.fill();
+  pctx.strokeStyle='#555'; pctx.lineWidth=3; pctx.stroke();
+  pctx.beginPath(); pctx.ellipse(cx,cy,r*0.4,r*0.35,0,0,Math.PI*2); pctx.fillStyle='#222'; pctx.fill();
+  pctx.restore();
 }
-function drawLaneIcon(ctx, lane, cx, cy, r) {
+function drawLaneIcon(pctx, lane, cx, cy, r) {
   switch (lane.icon) {
-    case 'cymbal': drawCymbalIcon(ctx,cx,cy,r,lane.color); break;
-    case 'hihat':  drawHiHatIcon(ctx,cx,cy,r,lane.color); break;
-    case 'pedal':  drawPedalIcon(ctx,cx,cy,r,lane.color); break;
-    case 'snare':  drawDrumIcon(ctx,cx,cy,r*0.9,lane.color,0.9); break;
-    case 'tom':    drawDrumIcon(ctx,cx,cy,r*0.85,lane.color,1.1); break;
-    case 'kick':   drawKickIcon(ctx,cx,cy,r,lane.color); break;
+    case 'cymbal': drawCymbalIcon(pctx,cx,cy,r,lane.color); break;
+    case 'hihat':  drawHiHatIcon(pctx,cx,cy,r,lane.color); break;
+    case 'pedal':  drawPedalIcon(pctx,cx,cy,r,lane.color); break;
+    case 'snare':  drawDrumIcon(pctx,cx,cy,r*0.9,lane.color,0.9); break;
+    case 'tom':    drawDrumIcon(pctx,cx,cy,r*0.85,lane.color,1.1); break;
+    case 'kick':   drawKickIcon(pctx,cx,cy,r,lane.color); break;
   }
 }
 
 /* =========================================================
-   ノーツ落下表示（音ゲー画面）
+   音ゲー表示
    ========================================================= */
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
 const LANE_WIDTH = canvas.width / LANES.length;
-const HIT_LINE_Y = canvas.height - 110;
+const HIT_LINE_Y = canvas.height - 120;
 const PIXELS_PER_SEC = 240;
 const LOOKAHEAD = (HIT_LINE_Y / PIXELS_PER_SEC) + 0.5;
 const NOTE_HEIGHT = 10, NOTE_PAD_X = 6;
@@ -772,9 +957,15 @@ function drawGame(currentTime) {
   LANES.forEach((lane, i) => { ctx.fillStyle = i % 2 === 0 ? '#151515' : '#0d0d0d'; ctx.fillRect(i*LANE_WIDTH,0,LANE_WIDTH,canvas.height); });
   LANES.forEach((lane, i) => { ctx.strokeStyle='#2a2a2a'; ctx.beginPath(); ctx.moveTo(i*LANE_WIDTH,0); ctx.lineTo(i*LANE_WIDTH,canvas.height); ctx.stroke(); });
   ctx.strokeStyle='#fff'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,HIT_LINE_Y); ctx.lineTo(canvas.width,HIT_LINE_Y); ctx.stroke();
-  LANES.forEach((lane, i) => drawLaneIcon(ctx, lane, i*LANE_WIDTH+LANE_WIDTH/2, canvas.height-40, LANE_WIDTH*0.32));
+  LANES.forEach((lane, i) => drawLaneIcon(ctx, lane, i*LANE_WIDTH+LANE_WIDTH/2, canvas.height-56, LANE_WIDTH*0.32));
   ctx.font='10px sans-serif'; ctx.textAlign='center';
-  LANES.forEach((lane, i) => { ctx.fillStyle='#999'; ctx.fillText(lane.name, i*LANE_WIDTH+LANE_WIDTH/2, canvas.height-6); });
+  LANES.forEach((lane, i) => {
+    ctx.fillStyle='#999'; ctx.fillText(lane.name, i*LANE_WIDTH+LANE_WIDTH/2, canvas.height-22);
+    const keys = keysForLane(lane.name);
+    ctx.fillStyle='#666'; ctx.font='9px sans-serif';
+    ctx.fillText(keys.join('/').toUpperCase(), i*LANE_WIDTH+LANE_WIDTH/2, canvas.height-8);
+    ctx.font='10px sans-serif';
+  });
 
   for (const n of drumNoteStates) {
     const dt = n.time - currentTime;
@@ -799,133 +990,67 @@ function drawGame(currentTime) {
 /* =========================================================
    楽譜風表示（スクロール式）
    ========================================================= */
-const notationCanvas = document.getElementById('notationCanvas');
-const nctx = notationCanvas.getContext('2d');
-const NOW_X = notationCanvas.width * 0.15;
 const STAFF_BOTTOM_Y = 110;
 const HALF_SPACING = 6;
 const N_PIXELS_PER_SEC = 240;
 function staffY(step) { return STAFF_BOTTOM_Y - step * HALF_SPACING; }
-
-/* ---- 小節基準のクリック指定（スクロール式楽譜上）---- */
-function findNoteNearClick(clickX, clickY) {
-  const currentTime = isPlaying ? getCurrentSongTime() : songTimeAtLastStart;
-  let best = null, bestDist = 16;
-  for (const n of drumNoteStates) {
-    const dt = n.time - currentTime;
-    const x = NOW_X + dt * N_PIXELS_PER_SEC;
-    if (x < -20 || x > notationCanvas.width + 20) continue;
-    const y = staffY(n.lane.staffStep);
-    const dist = Math.hypot(x - clickX, y - clickY);
-    if (dist < bestDist) { bestDist = dist; best = n; }
-  }
-  return best;
-}
-function notationClientToCanvas(e) {
-  const rect = notationCanvas.getBoundingClientRect();
-  const scaleX = notationCanvas.width / rect.width, scaleY = notationCanvas.height / rect.height;
-  return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
-}
-notationCanvas.addEventListener('pointerdown', (e) => {
-  if (!calibMode) return;
-  const { x, y } = notationClientToCanvas(e);
-  const note = findNoteNearClick(x, y);
-  if (!note) return;
-  if (calibMode === 'tempo') {
-    tempoClickBuffer.push(note.time);
-    if (tempoClickBuffer.length === 1) { calibStatus.textContent = '1つ目を取得。もう1つ音符をクリックしてください'; }
-    else {
-      const deltaSec = Math.abs(tempoClickBuffer[1] - tempoClickBuffer[0]);
-      const refBeats = parseFloat(refBeatsInput.value) || 4;
-      if (deltaSec > 0.01) {
-        const beatLen = deltaSec / refBeats;
-        const bpm = 60 / beatLen;
-        bpmInput.value = bpm.toFixed(1);
-        recomputeMeasures();
-        calibStatus.textContent = `テンポを検出しました: ${bpm.toFixed(1)} BPM`;
-      }
-      calibMode = null; tempoClickBuffer = [];
-    }
-  } else if (calibMode === 'start') {
-    measureStartRef = note.time;
-    recomputeMeasures();
-    calibStatus.textContent = `小節の開始基準を設定しました（${safeNum(note.time,2)}s地点の音）`;
-    calibMode = null;
-  }
-});
+function getNowX() { return notationCanvas.width * (parseFloat(hitLinePercentInput.value) || 22.5) / 100; }
 
 function drawJudgmentRing(pctx, x, y, result, alpha) {
   if (!result || result === 'PERFECT') return;
   const offsetX = result === 'LATE' ? -9 : result === 'EARLY' ? 9 : 0;
-  pctx.save();
-  pctx.globalAlpha = alpha;
-  pctx.strokeStyle = RESULT_COLORS[result];
-  pctx.lineWidth = 4;
-  pctx.beginPath();
-  pctx.arc(x + offsetX, y, 11, 0, Math.PI * 2);
-  pctx.stroke();
-  pctx.restore();
+  pctx.save(); pctx.globalAlpha = alpha; pctx.strokeStyle = RESULT_COLORS[result]; pctx.lineWidth = 4;
+  pctx.beginPath(); pctx.arc(x + offsetX, y, 11, 0, Math.PI * 2); pctx.stroke(); pctx.restore();
 }
-
 function drawNotation(currentTime) {
+  const nowX = getNowX();
   nctx.fillStyle = '#000'; nctx.fillRect(0, 0, notationCanvas.width, notationCanvas.height);
 
   const range = getLoopRange();
   if (range) {
-    const xs = NOW_X + (range.start - currentTime) * N_PIXELS_PER_SEC;
-    const xe = NOW_X + (range.end - currentTime) * N_PIXELS_PER_SEC;
+    const xs = nowX + (range.start - currentTime) * N_PIXELS_PER_SEC, xe = nowX + (range.end - currentTime) * N_PIXELS_PER_SEC;
     const left = Math.max(0, xs), right = Math.min(notationCanvas.width, xe);
     if (right > left) { nctx.fillStyle = 'rgba(255,235,59,0.15)'; nctx.fillRect(left, 0, right-left, notationCanvas.height); }
   }
-
   nctx.strokeStyle = '#888'; nctx.lineWidth = 1;
   for (let line = 0; line < 5; line++) { const y = staffY(line*2); nctx.beginPath(); nctx.moveTo(0,y); nctx.lineTo(notationCanvas.width,y); nctx.stroke(); }
 
   nctx.font = '11px sans-serif'; nctx.fillStyle = '#aaa';
   measures.forEach(m => {
-    const x = NOW_X + (m.startTime - currentTime) * N_PIXELS_PER_SEC;
+    const x = nowX + (m.startTime - currentTime) * N_PIXELS_PER_SEC;
     if (x < -20 || x > notationCanvas.width + 20) return;
     nctx.strokeStyle = '#555';
     nctx.beginPath(); nctx.moveTo(x, staffY(-4)); nctx.lineTo(x, staffY(12)); nctx.stroke();
     nctx.fillText(m.index, x + 3, staffY(13));
   });
-
   nctx.strokeStyle = '#fff'; nctx.lineWidth = 2;
-  nctx.beginPath(); nctx.moveTo(NOW_X, staffY(-5)); nctx.lineTo(NOW_X, staffY(13)); nctx.stroke();
+  nctx.beginPath(); nctx.moveTo(nowX, staffY(-5)); nctx.lineTo(nowX, staffY(13)); nctx.stroke();
 
   for (const n of drumNoteStates) {
     const dt = n.time - currentTime;
-    const x = NOW_X + dt * N_PIXELS_PER_SEC;
+    const x = nowX + dt * N_PIXELS_PER_SEC;
     if (x < -20 || x > notationCanvas.width + 20) continue;
     const y = staffY(n.lane.staffStep);
     const isCym = n.lane.icon === 'cymbal' || n.lane.icon === 'hihat' || n.lane.icon === 'pedal';
-
-    if (n.lane.staffStep < 0 || n.lane.staffStep > 8) {
-      nctx.strokeStyle = '#777'; nctx.beginPath(); nctx.moveTo(x-8,y); nctx.lineTo(x+8,y); nctx.stroke();
-    }
-    // ノーツ本体は常にレーン色
+    if (n.lane.staffStep < 0 || n.lane.staffStep > 8) { nctx.strokeStyle = '#777'; nctx.beginPath(); nctx.moveTo(x-8,y); nctx.lineTo(x+8,y); nctx.stroke(); }
     if (isCym) {
       nctx.strokeStyle = n.lane.color; nctx.lineWidth = 2.5;
       nctx.beginPath(); nctx.moveTo(x-5,y-5); nctx.lineTo(x+5,y+5); nctx.moveTo(x-5,y+5); nctx.lineTo(x+5,y-5); nctx.stroke();
     } else {
       nctx.fillStyle = n.lane.color; nctx.beginPath(); nctx.ellipse(x,y,6,4.5,-0.3,0,Math.PI*2); nctx.fill();
     }
-    // 判定リング（今回 or 前回の参考）
     if (n.judged && n.result) drawJudgmentRing(nctx, x, y, n.result, 1);
     else if (!n.judged && n.lastResult) drawJudgmentRing(nctx, x, y, n.lastResult, 0.45);
   }
 }
 
 /* =========================================================
-   全体譜面（俯瞰表示）
+   全体譜面
    ========================================================= */
-const overviewCanvas = document.getElementById('overviewCanvas');
-const octx = overviewCanvas.getContext('2d');
-const OV_BOX_W = 60, OV_ROW_H = 54;
-let ovMeasuresPerRow = 12;
-
+let OV_BOX_W = 60, OV_ROW_H = 54, ovMeasuresPerRow = 12;
 function resizeOverviewCanvas() {
-  ovMeasuresPerRow = Math.max(1, Math.floor(overviewCanvas.width / OV_BOX_W));
+  ovMeasuresPerRow = Math.max(1, parseInt(lineBreakInput.value) || 8);
+  OV_BOX_W = overviewCanvas.width / ovMeasuresPerRow;
   const rows = Math.max(1, Math.ceil(measures.length / ovMeasuresPerRow));
   overviewCanvas.height = rows * OV_ROW_H + 6;
 }
@@ -943,6 +1068,7 @@ function drawOverview(currentTime) {
   if (!measures.length) return;
   const curIdx = measureIndexAt(currentTime) - 1;
   const range = getLoopRange();
+  const segSize = Math.max(1, parseInt(segmentSizeInput.value) || 4);
 
   measures.forEach((m, idx) => {
     const col = idx % ovMeasuresPerRow, row = Math.floor(idx / ovMeasuresPerRow);
@@ -950,17 +1076,17 @@ function drawOverview(currentTime) {
 
     if (ovDrag && ovDrag.mode === 'loop') {
       const s = Math.min(ovDrag.startIdx, ovDrag.curIdx), e = Math.max(ovDrag.startIdx, ovDrag.curIdx);
-      if (idx >= s && idx <= e) { octx.fillStyle = 'rgba(255,152,0,0.25)'; octx.fillRect(bx, by, OV_BOX_W, OV_ROW_H); }
+      if (idx >= s && idx <= e) { octx.fillStyle = 'rgba(255,152,0,0.28)'; octx.fillRect(bx, by, OV_BOX_W, OV_ROW_H); }
     } else if (range && idx >= range.startIdx && idx <= range.endIdx) {
-      octx.fillStyle = 'rgba(255,235,59,0.18)'; octx.fillRect(bx, by, OV_BOX_W, OV_ROW_H);
+      octx.fillStyle = 'rgba(255,235,59,0.22)'; octx.fillRect(bx, by, OV_BOX_W, OV_ROW_H);
     }
-    if (idx === curIdx && isPlaying) { octx.fillStyle = 'rgba(255,255,255,0.12)'; octx.fillRect(bx, by, OV_BOX_W, OV_ROW_H); }
+    if (idx === curIdx) { octx.fillStyle = 'rgba(33,150,243,0.30)'; octx.fillRect(bx, by, OV_BOX_W, OV_ROW_H); }
 
     octx.strokeStyle = '#2a2a2a'; octx.strokeRect(bx+0.5, by+0.5, OV_BOX_W-1, OV_ROW_H-1);
-    octx.font = '8px sans-serif'; octx.fillStyle = '#666'; octx.textAlign = 'left';
-    octx.fillText(m.index, bx + 2, by + 9);
+    octx.font = 'bold 11px sans-serif'; octx.fillStyle = '#fff'; octx.textAlign = 'left';
+    octx.fillText(m.index, bx + 3, by + 12);
 
-    const staffBottom = by + 38, halfSp = 2.6;
+    const staffBottom = by + 40, halfSp = 2.6;
     octx.strokeStyle = '#555'; octx.lineWidth = 0.5;
     for (let l = 0; l < 5; l++) { const y = staffBottom - l*2*halfSp; octx.beginPath(); octx.moveTo(bx+3,y); octx.lineTo(bx+OV_BOX_W-3,y); octx.stroke(); }
 
@@ -974,6 +1100,12 @@ function drawOverview(currentTime) {
       octx.fillStyle = (n.lastResult === 'MISS') ? RESULT_COLORS.MISS : n.lane.color;
       octx.beginPath(); octx.arc(nx, ny, 1.6, 0, Math.PI*2); octx.fill();
     });
+
+    const isRowEnd = (col === ovMeasuresPerRow - 1);
+    if (!isRowEnd && (m.index % segSize === 0)) {
+      octx.strokeStyle = '#e53935'; octx.lineWidth = 3;
+      octx.beginPath(); octx.moveTo(bx + OV_BOX_W, by + 1); octx.lineTo(bx + OV_BOX_W, by + OV_ROW_H - 1); octx.stroke();
+    }
   });
 }
 overviewCanvas.addEventListener('pointerdown', (e) => {
@@ -994,16 +1126,11 @@ window.addEventListener('pointerup', () => {
   clearTimeout(ovDrag.timerId);
   if (ovDrag.mode === 'loop') {
     const s = Math.min(ovDrag.startIdx, ovDrag.curIdx), e = Math.max(ovDrag.startIdx, ovDrag.curIdx);
-    measureStartInput.value = s + 1;
-    measureCountInput.value = e - s + 1;
-    loopCheckbox.checked = true;
-  } else {
-    seekTo(measures[ovDrag.startIdx].startTime);
-  }
-  ovDrag = null;
-  redrawIdle();
+    measureStartInput.value = s + 1; measureCountInput.value = e - s + 1;
+    loopCheckbox.checked = true; loopQuickToggle.checked = true;
+  } else { seekTo(measures[ovDrag.startIdx].startTime); }
+  ovDrag = null; redrawIdle();
 });
-let ovDrag = null;
 
 /* =========================================================
    メインループ
@@ -1011,56 +1138,45 @@ let ovDrag = null;
 function gameLoop() {
   if (!isPlaying) return;
   let currentTime = getCurrentSongTime();
-
   if (loopModeActive && currentTime >= loopEnd) {
     songTimeAtLastStart = loopStart; playStartPerf = performance.now(); currentTime = loopStart;
     rewindPointersTo(loopStart);
     drumNoteStates.forEach(n => { if (n.time >= loopStart && n.time < loopEnd) { if (n.judged) n.lastResult = n.result; n.judged = false; n.result = null; } });
     resetScore();
   }
-
   melodicTrackStates.forEach(ts => {
     while (ts.idx < ts.notes.length && ts.notes[ts.idx].time <= currentTime) {
       const n = ts.notes[ts.idx];
       if (selectedOutput) {
         const chByte = 0x90 | ((ts.channel || 0) & 0x0f);
         const vel = Math.max(1, Math.min(127, Math.round(n.velocity * 127)));
-        try {
-          selectedOutput.send([chByte, n.midi, vel]);
-          setTimeout(() => { try { selectedOutput.send([0x80 | ((ts.channel||0)&0x0f), n.midi, 0]); } catch(e){} }, Math.max(50, n.duration*1000/playbackSpeed));
-        } catch (e) {}
-      } else if (ts.synth) {
-        ts.synth.triggerAttackRelease(n.name, n.duration, undefined, n.velocity);
-      }
+        try { selectedOutput.send([chByte, n.midi, vel]); setTimeout(() => { try { selectedOutput.send([0x80 | ((ts.channel||0)&0x0f), n.midi, 0]); } catch(e){} }, Math.max(50, n.duration*1000/playbackSpeed)); } catch (e) {}
+      } else if (ts.synth) { ts.synth.triggerAttackRelease(n.name, n.duration, undefined, n.velocity); }
       ts.idx++;
     }
   });
-
   while (sweepIdx < drumNoteStates.length && drumNoteStates[sweepIdx].time <= currentTime) {
     const n = drumNoteStates[sweepIdx];
     if (drumAudioModeSelect.value === 'file') playSoundForLane(n.lane, n.velocity);
-    if (n.time + GOOD_WINDOW < currentTime && !n.judged && (!loopModeActive || (n.time >= loopStart && n.time < loopEnd))) {
-      n.judged = true; n.result = 'MISS'; applyJudgment('MISS', n.lane);
-    }
-    if (n.time + GOOD_WINDOW < currentTime) sweepIdx++;
-    else break;
+    if (n.time + GOOD_WINDOW < currentTime && !n.judged && (!loopModeActive || (n.time >= loopStart && n.time < loopEnd))) { n.judged = true; n.result = 'MISS'; applyJudgment('MISS', n.lane); }
+    if (n.time + GOOD_WINDOW < currentTime) sweepIdx++; else break;
   }
-
   drawGame(currentTime); drawNotation(currentTime); drawOverview(currentTime);
   timeDisplayEl.textContent = `${safeNum(currentTime,1)}s / ${safeNum(loadedMidi.duration,1)}s`;
-
   const curMeasure = measures.find(m => currentTime >= m.startTime && currentTime < m.endTime);
   currentMeasureEl.textContent = curMeasure ? `再生中: 第${curMeasure.index}小節` : '';
-
   const endCondition = loopModeActive ? false : currentTime >= loadedMidi.duration + 1;
   if (!endCondition) requestAnimationFrame(gameLoop); else stopPlayback();
 }
 
+/* =========================================================
+   初期化
+   ========================================================= */
 applyVisibility();
-resizeOverviewCanvas();
-drawGame(0);
-drawNotation(0);
-drawOverview(0);
+{
+  const p = buildSamplePattern('8beat');
+  applySongData(makeFakeMidi(p.duration, 120, 4), p.notes, [], 'サンプルパターン: 8ビート', null);
+}
 </script>
 
 </body>
