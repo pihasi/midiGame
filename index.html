@@ -78,6 +78,12 @@
   <canvas id="notationCanvas" width="720" height="170"></canvas>
 </div>
 
+<div class="sectionHeader"><label><input type="checkbox" id="showPadCheckbox"> 👆 タップ入力パッド（キーボードにも対応）</label></div>
+<div class="panel" id="padPanel" style="display:none;">
+  <div id="padGrid"></div>
+  <div class="hint">MIDI入力がなくても、ここをタップ、またはキーボードのキーで練習できます（iRig Pads風 4×4配置）</div>
+</div>
+
 <div class="row" style="justify-content:center;">
   <label><input type="checkbox" id="loopQuickToggle"> 🔁 ループ再生 ON/OFF</label>
 </div>
@@ -100,22 +106,22 @@
 <div class="sectionHeader"><label><input type="checkbox" id="showMeasureSettingsCheckbox" checked> 小節の区切り位置の調整</label></div>
 <div class="panel" id="measureSettingsPanel">
   <div class="row">
-    基準の拍数 <input type="number" id="refBeatsInput" min="0.25" step="0.25" value="1">
+    <span style="white-space:nowrap;">基準の拍数 <input type="number" id="refBeatsInput" min="0.25" step="0.25" value="1"></span>
     <button id="pickTempoBtn">楽譜から基準指定（音符を2つクリック）</button>
-    ずらす拍数 <input type="number" id="refStartShiftInput" step="0.25" value="0">
     <button id="pickStartBtn">小節の開始基準を指定（音符を1つクリック）</button>
+    <span style="white-space:nowrap;">開始基準をずらす拍数 <input type="number" id="refStartShiftInput" step="0.25" value="0"></span>
   </div>
   <div class="row">
-    1小節の拍数 <input type="number" id="beatsPerMeasureInput" min="1" value="4">
-    区切りの小節数 <input type="number" id="segmentSizeInput" min="1" value="4">
-    改行の小節数 <input type="number" id="lineBreakInput" min="1" value="8">
+    <span style="white-space:nowrap;">1小節の拍数 <input type="number" id="beatsPerMeasureInput" min="1" value="4"></span>
+    <span style="white-space:nowrap;">区切りの小節数 <input type="number" id="segmentSizeInput" min="1" value="4"></span>
+    <span style="white-space:nowrap;">改行の小節数 <input type="number" id="lineBreakInput" min="1" value="8"></span>
     <button id="recalcMeasuresBtn">この設定で計算しなおす</button>
   </div>
   <div class="row">
     <button id="copySettingsBtn">設定を含んだファイル名をコピー</button>
     <span id="copyStatusEl" class="hint"></span>
   </div>
-  <div class="hint" id="calibStatus">「楽譜から基準指定」を押した後、下の楽譜表示内の音符を2つクリックするとBPMを実測します。「小節の開始基準を指定」は音符を1つクリックすると小節先頭に設定します（「ずらす拍数」でそこから前後にずらせます）。ファイル名に設定情報が含まれている場合は自動で読み込み、このパネルは自動的に隠れます。</div>
+  <div class="hint" id="calibStatus">「楽譜から基準指定」を押した後、下の楽譜表示内の音符を2つクリックするとBPMを実測します。「小節の開始基準を指定」は音符を1つクリックすると小節先頭に設定します（「開始基準をずらす拍数」でそこから前後にずらせます）。ファイル名に設定情報が含まれている場合は自動で読み込み、このパネルは自動的に隠れます。</div>
 </div>
 
 <div class="sectionHeader"><label><input type="checkbox" id="showGameCheckbox"> 音ゲー表示（ノーツ・スコア）</label></div>
@@ -131,12 +137,6 @@
     </div>
     <canvas id="gameCanvas" width="720" height="600"></canvas>
   </div>
-</div>
-
-<div class="panel">
-  <h3>👆 タップ入力パッド（キーボードにも対応）</h3>
-  <div id="padGrid"></div>
-  <div class="hint">MIDI入力がなくても、ここをタップ、またはキーボードのキーで練習できます（iRig Pads風 4×4配置）</div>
 </div>
 
 <div class="panel">
@@ -300,6 +300,8 @@ const showNotationCheckbox = document.getElementById('showNotationCheckbox');
 const showOverviewCheckbox = document.getElementById('showOverviewCheckbox');
 const showLoopPanelCheckbox = document.getElementById('showLoopPanelCheckbox');
 const showMeasureSettingsCheckbox = document.getElementById('showMeasureSettingsCheckbox');
+const showPadCheckbox = document.getElementById('showPadCheckbox');
+const padPanel = document.getElementById('padPanel');
 const gameWrap = document.getElementById('gameWrap');
 const notationWrap = document.getElementById('notationWrap');
 const overviewWrap = document.getElementById('overviewWrap');
@@ -486,7 +488,7 @@ copySettingsBtn.addEventListener('click', async () => {
 /* =========================================================
    曲データの適用（ファイル / サンプルパターン共通）
    ========================================================= */
-function applySongData(midiLike, drumNotesRaw, melodicRaw, label, fileNameForTag) {
+function applySongData(midiLike, drumNotesRaw, melodicRaw, label, fileNameForTag, isSamplePattern) {
   stopPlayback();
   loadedMidi = midiLike;
   drumNoteStates = drumNotesRaw.map(n => ({ time: n.time, midi: n.midi, velocity: n.velocity, duration: n.duration, lane: laneForNote(n.midi), judged: false, result: null, lastResult: null }));
@@ -517,6 +519,7 @@ function applySongData(midiLike, drumNotesRaw, melodicRaw, label, fileNameForTag
   }
   recomputeMeasures();
   if (autoApplied) { showMeasureSettingsCheckbox.checked = false; applyVisibility(); calibStatus.textContent = 'ファイル名から設定を自動反映しました'; }
+  else if (isSamplePattern) { showMeasureSettingsCheckbox.checked = false; applyVisibility(); }
 
   measureStartInput.value = 1; measureCountInput.value = 1; songTimeAtLastStart = 0;
 
@@ -558,7 +561,7 @@ document.querySelectorAll('input[name=pattern]').forEach(radio => {
     if (!radio.checked || radio.value === 'file') return;
     const p = buildSamplePattern(radio.value);
     currentFileBase = radio.value; currentFileExt = '.mid';
-    applySongData(makeFakeMidi(p.duration, 120, 4), p.notes, [], `サンプルパターン: ${radio.labels[0].textContent.trim()}`, null);
+    applySongData(makeFakeMidi(p.duration, 120, 4), p.notes, [], `サンプルパターン: ${radio.labels[0].textContent.trim()}`, null, true);
   });
 });
 
@@ -629,8 +632,9 @@ function applyVisibility() {
   gameWrap.classList.toggle('show', showGameCheckbox.checked);
   loopPanel.style.display = showLoopPanelCheckbox.checked ? 'block' : 'none';
   measureSettingsPanel.style.display = showMeasureSettingsCheckbox.checked ? 'block' : 'none';
+  padPanel.style.display = showPadCheckbox.checked ? 'block' : 'none';
 }
-[showNotationCheckbox, showOverviewCheckbox, showGameCheckbox, showLoopPanelCheckbox, showMeasureSettingsCheckbox].forEach(el => el.addEventListener('change', () => { applyVisibility(); redrawIdle(); }));
+[showNotationCheckbox, showOverviewCheckbox, showGameCheckbox, showLoopPanelCheckbox, showMeasureSettingsCheckbox, showPadCheckbox].forEach(el => el.addEventListener('change', () => { applyVisibility(); redrawIdle(); }));
 
 speedRange.addEventListener('input', () => {
   const newSpeed = parseFloat(speedRange.value);
@@ -1175,7 +1179,7 @@ function gameLoop() {
 applyVisibility();
 {
   const p = buildSamplePattern('8beat');
-  applySongData(makeFakeMidi(p.duration, 120, 4), p.notes, [], 'サンプルパターン: 8ビート', null);
+  applySongData(makeFakeMidi(p.duration, 120, 4), p.notes, [], 'サンプルパターン: 8ビート', null, true);
 }
 </script>
 
