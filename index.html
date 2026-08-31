@@ -171,6 +171,7 @@
   <summary>MIDI受信テスト（ライブ入力ログ）</summary>
   <div id="status" class="ng">MIDIアクセスを要求中...</div>
   <div id="devices">接続デバイス: -</div>
+  <button id="rescanMidiBtn">🔄 MIDIデバイスを再スキャン</button>
   <button onclick="document.getElementById('log').innerHTML=''">ログをクリア</button>
   <div id="log"></div>
 </details>
@@ -336,6 +337,11 @@ function onMIDISuccess(midiAccess) {
 function onMIDIFailure(err) { statusEl.textContent = 'MIDIアクセス失敗: ' + err; statusEl.className = 'ng'; }
 if (navigator.requestMIDIAccess) navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
 else { statusEl.textContent = 'このブラウザはWeb MIDI APIに対応していません'; statusEl.className = 'ng'; }
+document.getElementById('rescanMidiBtn').addEventListener('click', () => {
+  if (!navigator.requestMIDIAccess) return;
+  statusEl.textContent = 'MIDIアクセスを再要求中...'; statusEl.className = 'ng';
+  navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+});
 
 /* =========================================================
    ドラム音源（内蔵サンプルキット）
@@ -539,57 +545,10 @@ fileInput.addEventListener('change', async (e) => {
 recalcMeasuresBtn.addEventListener('click', recomputeMeasures);
 [loopCheckbox, measureStartInput, measureCountInput].forEach(el => el.addEventListener('input', redrawIdle));
 
-/* ---- 小節基準のクリック指定（スクロール式楽譜上）---- */
-let calibMode = null; // null | 'tempo' | 'start'
+let calibMode = null; // null | 'tempo' | 'start'  (実際のイベント登録は notationCanvas 定義後に行う)
 let tempoClickBuffer = [];
 pickTempoBtn.addEventListener('click', () => { calibMode = 'tempo'; tempoClickBuffer = []; calibStatus.textContent = '楽譜上の音符を2つクリックしてください（1つ目をクリックしました: まだ）'; });
 pickStartBtn.addEventListener('click', () => { calibMode = 'start'; calibStatus.textContent = '楽譜上の音符を1つクリックして、小節の開始基準にしてください'; });
-
-function findNoteNearClick(clickX, clickY) {
-  const currentTime = isPlaying ? getCurrentSongTime() : songTimeAtLastStart;
-  let best = null, bestDist = 16;
-  for (const n of drumNoteStates) {
-    const dt = n.time - currentTime;
-    const x = NOW_X + dt * N_PIXELS_PER_SEC;
-    if (x < -20 || x > notationCanvas.width + 20) continue;
-    const y = staffY(n.lane.staffStep);
-    const dist = Math.hypot(x - clickX, y - clickY);
-    if (dist < bestDist) { bestDist = dist; best = n; }
-  }
-  return best;
-}
-function notationClientToCanvas(e) {
-  const rect = notationCanvas.getBoundingClientRect();
-  const scaleX = notationCanvas.width / rect.width, scaleY = notationCanvas.height / rect.height;
-  return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
-}
-notationCanvas.addEventListener('pointerdown', (e) => {
-  if (!calibMode) return;
-  const { x, y } = notationClientToCanvas(e);
-  const note = findNoteNearClick(x, y);
-  if (!note) return;
-  if (calibMode === 'tempo') {
-    tempoClickBuffer.push(note.time);
-    if (tempoClickBuffer.length === 1) { calibStatus.textContent = '1つ目を取得。もう1つ音符をクリックしてください'; }
-    else {
-      const deltaSec = Math.abs(tempoClickBuffer[1] - tempoClickBuffer[0]);
-      const refBeats = parseFloat(refBeatsInput.value) || 4;
-      if (deltaSec > 0.01) {
-        const beatLen = deltaSec / refBeats;
-        const bpm = 60 / beatLen;
-        bpmInput.value = bpm.toFixed(1);
-        recomputeMeasures();
-        calibStatus.textContent = `テンポを検出しました: ${bpm.toFixed(1)} BPM`;
-      }
-      calibMode = null; tempoClickBuffer = [];
-    }
-  } else if (calibMode === 'start') {
-    measureStartRef = note.time;
-    recomputeMeasures();
-    calibStatus.textContent = `小節の開始基準を設定しました（${safeNum(note.time,2)}s地点の音）`;
-    calibMode = null;
-  }
-});
 
 /* =========================================================
    再生クロック
@@ -847,6 +806,53 @@ const STAFF_BOTTOM_Y = 110;
 const HALF_SPACING = 6;
 const N_PIXELS_PER_SEC = 240;
 function staffY(step) { return STAFF_BOTTOM_Y - step * HALF_SPACING; }
+
+/* ---- 小節基準のクリック指定（スクロール式楽譜上）---- */
+function findNoteNearClick(clickX, clickY) {
+  const currentTime = isPlaying ? getCurrentSongTime() : songTimeAtLastStart;
+  let best = null, bestDist = 16;
+  for (const n of drumNoteStates) {
+    const dt = n.time - currentTime;
+    const x = NOW_X + dt * N_PIXELS_PER_SEC;
+    if (x < -20 || x > notationCanvas.width + 20) continue;
+    const y = staffY(n.lane.staffStep);
+    const dist = Math.hypot(x - clickX, y - clickY);
+    if (dist < bestDist) { bestDist = dist; best = n; }
+  }
+  return best;
+}
+function notationClientToCanvas(e) {
+  const rect = notationCanvas.getBoundingClientRect();
+  const scaleX = notationCanvas.width / rect.width, scaleY = notationCanvas.height / rect.height;
+  return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+}
+notationCanvas.addEventListener('pointerdown', (e) => {
+  if (!calibMode) return;
+  const { x, y } = notationClientToCanvas(e);
+  const note = findNoteNearClick(x, y);
+  if (!note) return;
+  if (calibMode === 'tempo') {
+    tempoClickBuffer.push(note.time);
+    if (tempoClickBuffer.length === 1) { calibStatus.textContent = '1つ目を取得。もう1つ音符をクリックしてください'; }
+    else {
+      const deltaSec = Math.abs(tempoClickBuffer[1] - tempoClickBuffer[0]);
+      const refBeats = parseFloat(refBeatsInput.value) || 4;
+      if (deltaSec > 0.01) {
+        const beatLen = deltaSec / refBeats;
+        const bpm = 60 / beatLen;
+        bpmInput.value = bpm.toFixed(1);
+        recomputeMeasures();
+        calibStatus.textContent = `テンポを検出しました: ${bpm.toFixed(1)} BPM`;
+      }
+      calibMode = null; tempoClickBuffer = [];
+    }
+  } else if (calibMode === 'start') {
+    measureStartRef = note.time;
+    recomputeMeasures();
+    calibStatus.textContent = `小節の開始基準を設定しました（${safeNum(note.time,2)}s地点の音）`;
+    calibMode = null;
+  }
+});
 
 function drawJudgmentRing(pctx, x, y, result, alpha) {
   if (!result || result === 'PERFECT') return;
