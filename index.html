@@ -167,11 +167,30 @@
       <option value="acoustic">アコースティック</option>
       <option value="tr909">TR-909（エレクトロニック）</option>
       <option value="linndrum" selected>LinnDrum LM-2（レトロ）</option>
+      <option value="spc">SPCから抽出した音源（要設定）</option>
     </select>
   </div>
   <div class="hint">外部MIDI出力を選ぶと、PC/DAWやOS標準の音源に生のMIDI信号を送って鳴らせます。iOSは標準では外部音源を持たないため、GarageBand等のMIDI対応アプリを併用してください。</div>
   <h3 style="margin-top:12px;">試聴</h3>
   <div id="kitPreviewGrid"></div>
+</div>
+
+<div class="panel">
+  <h3>🎮 SPCファイルから音源を抽出（実験的機能）</h3>
+  <div class="hint">
+    SPCファイルにはゲーム内で使われていた波形サンプル(BRR形式)がそのまま入っています。ここで抽出・試聴して、各レーンに好きなサンプルを割り当てると、「SPCから抽出した音源」として再生に使えます。<br>
+    ※ SPC内のどのサンプルがどの楽器かは自動判定できないため、試聴して耳で選んで割り当ててください。ノイズのようなサンプルも混ざります。
+  </div>
+  <div class="row">
+    <input type="file" id="spcFileInput" accept=".spc">
+    <span id="spcStatusEl" class="hint"></span>
+  </div>
+  <div id="spcSampleList" style="max-height:240px; overflow-y:auto; margin-top:8px;"></div>
+  <h3 style="margin-top:12px;">レーンへの割り当て</h3>
+  <div class="row" id="spcAssignRow"></div>
+  <div class="row">
+    <button id="spcApplyBtn" disabled>この割り当てを「SPCから抽出した音源」として使う</button>
+  </div>
 </div>
 
 <div class="panel">
@@ -752,6 +771,7 @@ function buildKitPreviewButtons() {
   });
 }
 function loadKit(kitName) {
+  if (kitName === 'spc') { loadStateEl.textContent = ''; return; }
   if (drumPlayers) drumPlayers.dispose();
   loadStateEl.textContent = '🔊 音源読み込み中...';
   drumPlayers = new Tone.Players(KITS[kitName], () => { loadStateEl.textContent = ''; }).connect(compressor);
@@ -769,12 +789,158 @@ function playSoundForLane(lane, velocity) {
     const noteNum = lane.notes[0];
     const vel = Math.max(1, Math.min(127, Math.round(velocity * 127)));
     try { selectedOutput.send([0x99, noteNum, vel]); setTimeout(() => { try { selectedOutput.send([0x89, noteNum, 0]); } catch (e) {} }, 120); } catch (e) {}
+  } else if (kitSelect.value === 'spc') {
+    const p = spcLanePlayers[lane.name];
+    if (!p) return;
+    const v = Math.max(0.15, Math.min(1, velocity));
+    try { p.volume.value = Tone.gainToDb(v); p.start(); } catch (e) {}
   } else {
     if (!drumPlayers) return;
     const v = Math.max(0.15, Math.min(1, velocity));
     try { const p = drumPlayers.player(lane.sample); p.volume.value = Tone.gainToDb(v); p.playbackRate = lane.rate; p.start(); } catch (e) {}
   }
 }
+
+/* =========================================================
+   SPCファイルからの音源抽出（実験的機能）
+   SPCはSNES音源チップ(SPC700+DSP)のメモリスナップショット。
+   64KB RAM内にBRR形式(SNES独自のADPCM風圧縮)の波形サンプルが
+   埋め込まれているため、それを解析・デコードして取り出す。
+   ========================================================= */
+const spcFileInput = document.getElementById('spcFileInput');
+const spcStatusEl = document.getElementById('spcStatusEl');
+const spcSampleListEl = document.getElementById('spcSampleList');
+const spcAssignRowEl = document.getElementById('spcAssignRow');
+const spcApplyBtn = document.getElementById('spcApplyBtn');
+
+let spcSamples = [];      // {index, startAddr, pcm:Float32Array, looped}
+let spcAudioBuffers = {}; // index -> AudioBuffer
+let spcLanePlayers = {};  // laneName -> Tone.Player
+
+function decodeBRR(ram, startAddr) {
+  let addr = startAddr, p1 = 0, p2 = 0;
+  const samples = [];
+  let looped = false;
+  let blocks = 0;
+  while (addr + 9 <= ram.length && blocks < 2000) {
+    const header = ram[addr];
+    const shift = header >> 4;
+    const filter = (header >> 2) & 3;
+    const loopFlag = (header & 2) !== 0;
+    const endFlag = (header & 1) !== 0;
+    for (let i = 0; i < 8; i++) {
+      const byte = ram[addr + 1 + i];
+      for (const nib of [byte >> 4, byte & 0xF]) {
+        let s = nib >= 8 ? nib - 16 : nib;
+        let raw = shift <= 12 ? (s << shift) >> 1 : (s < 0 ? -2048 : 0);
+        let pred = 0;
+        if (filter === 1) pred = p1 + ((-p1) >> 4);
+        else if (filter === 2) pred = 2 * p1 + ((-3 * p1) >> 5) - p2 + (p2 >> 4);
+        else if (filter === 3) pred = 2 * p1 + ((-13 * p1) >> 6) - p2 + ((3 * p2) >> 4);
+        let val = raw + pred;
+        if (val > 32767) val = 32767; else if (val < -32768) val = -32768;
+        samples.push(val);
+        p2 = p1; p1 = val;
+      }
+    }
+    addr += 9; blocks++;
+    if (endFlag) { looped = loopFlag; break; }
+  }
+  const pcm = new Float32Array(samples.length);
+  for (let i = 0; i < samples.length; i++) pcm[i] = samples[i] / 32768;
+  return { pcm, looped };
+}
+function extractSpcSamples(ram, dsp) {
+  const dirAddr = dsp[0x5D] * 256;
+  const out = [];
+  for (let i = 0; i < 256; i++) {
+    const ea = dirAddr + i * 4;
+    if (ea + 4 > ram.length) break;
+    const startAddr = ram[ea] | (ram[ea + 1] << 8);
+    const loopAddr = ram[ea + 2] | (ram[ea + 3] << 8);
+    if (startAddr === 0 || startAddr >= ram.length - 9 || startAddr === 0xffff) continue;
+    const { pcm, looped } = decodeBRR(ram, startAddr);
+    if (pcm.length < 32) continue;
+    out.push({ index: i, startAddr, loopAddr, pcm, looped });
+  }
+  return out;
+}
+function pcmToAudioBuffer(pcm) {
+  const rawCtx = Tone.getContext().rawContext;
+  const buf = rawCtx.createBuffer(1, pcm.length, 32000);
+  buf.copyToChannel(pcm, 0);
+  return buf;
+}
+spcFileInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  spcStatusEl.textContent = '解析中...';
+  try {
+    const buf = await file.arrayBuffer();
+    const data = new Uint8Array(buf);
+    const ram = data.slice(0x100, 0x100 + 0x10000);
+    const dsp = data.slice(0x10100, 0x10100 + 128);
+    spcSamples = extractSpcSamples(ram, dsp);
+    spcAudioBuffers = {};
+    await Tone.start();
+    spcSamples.forEach(s => { spcAudioBuffers[s.index] = pcmToAudioBuffer(s.pcm); });
+    renderSpcSampleList();
+    renderSpcAssignRow();
+    spcStatusEl.textContent = `${spcSamples.length}個のサンプルを抽出しました`;
+    spcApplyBtn.disabled = spcSamples.length === 0;
+  } catch (err) {
+    spcStatusEl.textContent = '解析に失敗しました: ' + err;
+    console.error(err);
+  }
+});
+function renderSpcSampleList() {
+  spcSampleListEl.innerHTML = '';
+  spcSamples.forEach(s => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.style.marginBottom = '2px';
+    const ms = (s.pcm.length / 32000 * 1000).toFixed(0);
+    row.innerHTML = `<button data-idx="${s.index}" class="spcPlayBtn">▶ #${s.index}</button><span class="hint">${ms}ms${s.looped ? ' / ループ' : ''}</span>`;
+    spcSampleListEl.appendChild(row);
+  });
+  spcSampleListEl.querySelectorAll('.spcPlayBtn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await Tone.start();
+      const idx = parseInt(btn.dataset.idx);
+      const player = new Tone.Player(spcAudioBuffers[idx]).toDestination();
+      player.start();
+    });
+  });
+}
+function renderSpcAssignRow() {
+  spcAssignRowEl.innerHTML = '';
+  LANES.forEach(lane => {
+    const wrap = document.createElement('span');
+    wrap.style.whiteSpace = 'nowrap';
+    const sel = document.createElement('select');
+    sel.id = 'spcAssign_' + lane.name;
+    sel.innerHTML = '<option value="">(未割り当て)</option>' + spcSamples.map(s => `<option value="${s.index}">#${s.index} (${(s.pcm.length/32000*1000).toFixed(0)}ms)</option>`).join('');
+    wrap.textContent = lane.name + ': ';
+    wrap.appendChild(sel);
+    spcAssignRowEl.appendChild(wrap);
+  });
+}
+spcApplyBtn.addEventListener('click', () => {
+  Object.values(spcLanePlayers).forEach(p => p.dispose());
+  spcLanePlayers = {};
+  LANES.forEach(lane => {
+    const sel = document.getElementById('spcAssign_' + lane.name);
+    if (!sel || !sel.value) return;
+    const idx = parseInt(sel.value);
+    const buf = spcAudioBuffers[idx];
+    if (!buf) return;
+    spcLanePlayers[lane.name] = new Tone.Player(buf).connect(compressor);
+  });
+  kitSelect.value = 'spc';
+  loadKit('spc');
+  spcStatusEl.textContent = '「SPCから抽出した音源」として設定しました。上の内蔵キットが「SPCから抽出した音源」になっていることを確認してください。';
+});
+
 
 /* =========================================================
    再生開始/停止
