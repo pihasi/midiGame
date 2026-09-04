@@ -51,7 +51,7 @@
 </head>
 <body>
 
-<div id="versionBadge" style="text-align:right; font-size:0.7em; color:#888; padding:2px 8px 0 0;">0.9.202609032201</div>
+<div id="versionBadge" style="text-align:right; font-size:0.7em; color:#888; padding:2px 8px 0 0;">0.9.202609041727</div>
 
 <div class="row">
   <input type="file" id="fileInput" accept=".mid,.midi,.spc,.json,.zip,.txt" multiple>
@@ -81,6 +81,9 @@
 
 <div class="row" style="justify-content:center;">
   <label><input type="checkbox" id="honbanCheckbox"> 🎼 手本演奏</label>
+</div>
+<div class="row" style="justify-content:center;">
+  <label><input type="checkbox" id="countInCheckbox" checked> 🥁 開始時カウント</label>
 </div>
 <div class="row" style="justify-content:center;">
   <label><input type="checkbox" id="loopQuickToggle"> 🔁 ループ再生 ON/OFF</label>
@@ -171,7 +174,7 @@
   <div class="hint">ボタン・MIDI信号・16padのいずれでも試聴できます。今回読み込んだ曲に無い音色（命名情報が無いレーン）はグレーアウトされます。</div>
   <div id="kitPreviewGrid"></div>
 
-  <h3 style="margin-top:12px;">手動での音色割当（自動化できていない部分）</h3>
+  <h3 style="margin-top:12px;">手動での音色割当</h3>
   <div class="hint">
     SPCファイルにはゲーム内で使われていた波形サンプル(BRR形式)がそのまま入っています。MIDIと同名のSPCが一緒に選ばれると自動で解析されます。<br>
     ※ SPC内のどのサンプルがどの楽器かは自動判定できないため、試聴して耳で選んで割り当ててください。ノイズのようなサンプルも混ざります。打楽器パートの割り当ては「🥁打楽器パートの音色」パネルで行います。
@@ -180,7 +183,7 @@
   <span id="spcStatusEl" class="hint"></span>
 
   <h4>旋律パートへの割り当て</h4>
-  <div class="hint">1チャンネル＝1音源という前提で、各MIDIチャンネルに使うSPCサンプルを選べます。（）内はJSONのinstrument_name/programをそのまま表示したものです。参考程度（推測含む）です。mute/soloは旋律パートの発音に効きます（▶再生・「曲を聴きながら割り当てる」の▶再生どちらでも共通）。打楽器の判定には影響しません。「→打楽器として扱う」は、実は打楽器だったチャンネルを打楽器パート側に移す機能です（曲読込直後・未再生時のみ操作可）。</div>
+  <div class="hint">1チャンネル＝1音源という前提で、各MIDIチャンネルに使うSPCサンプルを選べます。（）内は実際に割り当てたサンプルのJSON上のinstrument_nameで、未割当のチャンネルには表示されません。mute/soloは旋律パートの発音に効きます（▶再生・「曲を聴きながら割り当てる」の▶再生どちらでも共通）。打楽器の判定には影響しません。「→打楽器として扱う」は、実は打楽器だったチャンネルを打楽器パート側に移す機能です（曲読込直後・未再生時のみ操作可）。</div>
   <div class="row">
     <button id="melodicAllOnBtn">全部on</button>
   </div>
@@ -236,50 +239,69 @@
   <div id="usageDoc">
     <h4>基本の流れ</h4>
     <ul>
-      <li>一番上の選択欄からMIDI・SPC・JSON・ZIP・txtをまとめて選べます（複数選択可）。SPC/JSONはMIDIと同じファイル名（設定タグを除く）のものが自動で紐づきます。ファイルの代わりに右のラジオボタンでサンプルパターン（8ビート/16ビート/四つ打ち）を選ぶこともできます。</li>
+      <li>一番上の選択欄からMIDI・SPC・JSON・ZIP・txtをまとめて選べます（複数選択可）。SPC/JSONはMIDIと同じファイル名（設定タグを除く）のものが自動で紐づきます。ファイルの代わりに右のラジオボタンでサンプルパターン（8ビート/16ビート/四つ打ち、いずれもベース音付き）を選ぶこともできます。</li>
       <li>MIDIが既に読み込み済みの状態でtxtだけ、あるいはSPC/JSONだけを選ぶと、今読み込んでいる曲に対する追加・上書き適用として扱われます。</li>
       <li>▶再生／■停止、またはMIDI機器・タップパッド・キーボードの長押しで再生を開始／停止できます（長押しの秒数は設定変更可）。短く叩いた場合は再生中でなければ音の確認だけが鳴ります。</li>
-      <li>「🎼 手本演奏」：ONにするとMIDIの打楽器演奏情報どおりに自動でお手本の音が鳴ります。OFFなら自分が叩いた音だけが鳴ります。ON/OFFに関わらず、MIDI機器・16pad・キーボードいずれの入力も常に判定を受け付けます。</li>
-      <li>「🔁 ループ再生 ON/OFF」：下の「小節ループ練習」で指定した範囲を繰り返し再生します。</li>
+      <li>「🎼 手本演奏」：ONにするとMIDIの打楽器演奏情報どおりに自動でお手本の音が鳴ります。OFFなら自分が叩いた音だけが鳴ります。ON/OFFに関わらず、MIDI機器・16pad・キーボードいずれの入力も常に判定を受け付けます（旋律パートは常にこの設定と無関係に自動で鳴ります）。</li>
+      <li>「🥁 開始時カウント」：ONの場合、▶ボタン（メインの再生ボタン、および長押しでの再生開始）を押すたびに、1小節の拍数ぶんの「1、2、3、4」のカウント（スティック音を合成）を挟んでから再生が始まります。この間もスクロール譜面は自然に流れます。小節としてはカウントされず、ループが1周して自動的に先頭に戻る際は鳴りません。「曲を聴きながら割り当てる」の▶ボタンでは常に鳴りません。</li>
+      <li>旋律パートは、MIDIのピッチベンド・Volume・Pan・Expression・Reverb量も反映して再生されます（ピッチベンドの幅はRPNの設定を読み取ります。Reverbは曲頭の値を1回だけ反映する簡易対応です）。</li>
+      <li>「🔁 ループ再生 ON/OFF」：全体譜面（下記）で長押し＋ドラッグして指定した範囲を繰り返し再生します。</li>
+      <li>右上にバージョン番号（例：0.9.yyyymmddhhmm）を表示しています。</li>
     </ul>
     <h4>楽譜表示（スクロール式）</h4>
     <ul>
       <li>縦の基準線を通過するタイミングで叩きます。基準線の位置は「⏱長押し・表示位置の設定」で調整できます。</li>
-      <li><span class="legendDot" style="background:#4caf50;"></span>PERFECTは印なし／<span class="legendDot" style="background:#e53935;"></span>赤＝早い(右にずれて表示)／<span class="legendDot" style="background:#2196f3;"></span>青＝遅い(左にずれて表示)／<span class="legendDot" style="background:#9e9e9e;"></span>灰＝ミス</li>
+      <li><span class="legendDot" style="background:#4caf50;"></span>PERFECTは印なし／<span class="legendDot" style="background:#e53935;"></span>赤＝早い(上にずれて表示)／<span class="legendDot" style="background:#2196f3;"></span>青＝遅い(下にずれて表示)／<span class="legendDot" style="background:#9e9e9e;"></span>灰＝ミス</li>
       <li>薄い丸は「前回そのノーツを叩いた時の判定」の参考表示です。</li>
+      <li>L.CymとR.Cymは、曲の打楽器パートにどちらか一方しか存在しない場合、どの場面でも完全に同じもの（同じ音・同じ判定）として扱われます。</li>
     </ul>
     <h4>全体譜面</h4>
     <ul>
-      <li>タップで再生位置移動、長押し＋ドラッグでループ範囲選択。現在位置(青)とループ範囲(黄)は色で区別されます。</li>
+      <li>タップで再生位置移動、長押し＋ドラッグでループ範囲選択。現在位置(青)とループ範囲(黄)は色で区別されます。「曲を聴きながら割り当てる」欄にも同じ操作ができるミニ版があります。</li>
       <li>「区切りの小節数」ごとに赤い太線、「改行の小節数」ごとに改行します（同時の場合は赤線は表示しません）。</li>
     </ul>
     <h4>小節位置の調整とファイル名/txt共有</h4>
     <ul>
-      <li>BPM/開始位置/区切り/音色割当などを調整後、「MIDI信号の入出力」パネル下部の「この曲の設定を文字列としてコピー」でその内容を文字列としてコピーできます。txtファイル（1行＝1曲、ファイル名＋この文字列）に貼り付けるか、MIDIファイル名自体に埋め込んで保存すれば、次回読み込み時に自動で同じ設定が復元されます。</li>
+      <li>MIDI読み込み時に区切り情報（txt/ファイル名タグ）が見つからなければ、このパネルは自動的に表示状態になります。</li>
+      <li>「楽譜から基準指定」：楽譜上の音符を2つクリックしてBPMを実測します。</li>
+      <li>「小節の開始基準を指定」：楽譜上の音符を1つクリックすると、そこを<strong>ある小節の区切り位置</strong>として、前後両方向に同じ長さで区切りを広げます。指定位置より前に音符が無くなったところが自動的に第1小節になります。</li>
+      <li>BPM/開始位置/区切り/音色割当などを調整後、「MIDI信号の入出力」パネル下部の「この曲の設定を文字列としてコピー」でその内容を文字列としてコピーできます。txtファイル（1行＝1曲、ファイル名＋この文字列）に貼り付けるか、MIDIファイル名自体に埋め込んで保存すれば、次回読み込み時に自動で同じ設定が復元されます（打楽器の音色割当・旋律パートの音色割当・基準ピッチ補正も含みます。muteの状態は保存されません）。</li>
       <li>読み取り優先順位：txt内の設定 ＞ ZIPファイル名 ＞ MIDIファイル名 ＞ 自動推定。</li>
     </ul>
-    <h4>SPCファイルからの音源抽出とspc2midi-tsuuとの連携</h4>
+    <h4>打楽器パートの音色（表示レーン・SPC音源の割り当て）</h4>
     <ul>
-      <li>MIDIと同名のSPCを一緒に選ぶと、ゲーム内で使われていた波形サンプル(BRR形式)を自動で解析・抽出します。SPC内のどのサンプルがどの楽器かは自動判定できないため、「手動での音色割当」欄で試聴して耳で選んで割り当てます（打楽器パート・旋律パートとも、プルダウンで選ぶと即座に反映されます）。</li>
-      <li>spc2midi-tsuuというツールでSPCからMIDIを生成すると、ドラムの各サンプルに名前を付けられます（Option内の「Split Drum Notes Into Separate Tracks」を有効にしてエクスポートすると、サンプルごとにトラックが分かれ、下記の略称どおりに名前を付けることで、このアプリ側で自動的に正しい打楽器パートへ割り当てられます）。旋律パートの名前は適当な連番でも問題ありません（1チャンネル＝1音源のリンクとして使うだけのため）。</li>
-      <li>打楽器パートの命名規則（大文字小文字は区別しません）：
+      <li>MIDIと同名のSPCを一緒に選ぶと、ゲーム内で使われていた波形サンプル(BRR形式)を自動で解析・抽出します。SPC内のどのサンプルがどの楽器かは自動判定できないため、試聴して耳で選んで割り当てます（プルダウンで選ぶと即座に反映されます）。サンプル一覧には長さ・SPC RAM上のアドレス(spc2midi-tsuuの「Addr」欄と同じ値)・既に割り当て済みのパート名を表示します。</li>
+      <li>spc2midi-tsuuというツールでSPCからMIDIを生成すると、ドラムの各サンプルに名前を付けられます（Option内の「Split Drum Notes Into Separate Tracks」を有効にしてエクスポートすると、サンプルごとにトラックが分かれ、下記の略称どおりに名前を付けることで、このアプリ側で自動的に正しい打楽器パートへ割り当てられます）。</li>
+      <li>打楽器パートの命名規則（大文字小文字は区別しません。表示名そのもの（HiHat等）で入力しても認識されます）：
         <ul>
-          <li>k / kick / bd：キック</li>
+          <li>k / kick / bd / b：キック</li>
           <li>s / snare / sn：スネア</li>
           <li>h / hihat / hh / ch：クローズハイハット</li>
-          <li>oh：オープンハイハット</li>
-          <li>hp / pedal / hhped：レフトペダル（ハイハットのフット操作）</li>
+          <li>oh / o.hat：オープンハイハット</li>
+          <li>hp / pedal / hhped / l.ped：レフトペダル（ハイハットのフット操作）</li>
           <li>ht / hitom：ハイタム</li>
           <li>lt / lowtom / lotom：ロータム</li>
-          <li>ft / floortom：フロアタム</li>
-          <li>lc / lcym：レフトシンバル</li>
-          <li>rc / rcym：ライトシンバル</li>
+          <li>ft / floortom / f.tom：フロアタム</li>
+          <li>lc / lcym / l.cym：レフトシンバル</li>
+          <li>rc / rcym / r.cym：ライトシンバル</li>
           <li>rd / ride：ライドシンバル</li>
-          <li>c / cc / crash：左右区別なしのシンバル（曲全体でこのレーンしか使われていない場合、判定は左右どちらのシンバル入力でもOKになります。lc/rcのどちらか片方しか無い曲も同様です）</li>
+          <li>c / cc / crash / cymbal：左右区別なしのシンバル</li>
         </ul>
       </li>
-      <li>空欄または名前が辞書に無い場合は自動割り当てされず、「打楽器の音色→表示レーンの割り当て」欄で手動指定します。同じ名前が複数のサンプルに付いている場合、楽譜上は同じレーンとして表示されますが、実際に鳴る音は各ノーツに元々紐づく個別のサンプルがそのまま使われます。</li>
-      <li>JSONファイル（spc2midi-tsuuの設定出力）を一緒に選ぶと、旋律パート割当欄に参考ラベルとして表示されます（確証はないため目安程度です）。打楽器パートについては、JSON内のキー番号(SRCN)がこのアプリの抽出サンプル番号と同じ方式のため、名前(k/s/h/c等)が略称辞書に一致するものは自動でSPCサンプルが割り当てられます。</li>
+      <li>空欄または名前が辞書に無い場合は自動割り当てされず、このパネルで手動指定します。同じ名前が複数のサンプルに付いている場合、楽譜上は同じレーンとして表示されますが、実際に鳴る音は各ノーツに元々紐づく個別のサンプルがそのまま使われます。表示レーンを変更しても、割り当てたSPCサンプルは音色名にひもづいたままついてきます。</li>
+      <li>JSON内のキー番号(SRCN)がこのアプリの抽出サンプル番号と同じ方式のため、名前(k/s/h/c等)が略称辞書に一致するものは自動でSPCサンプルが割り当てられます。</li>
+      <li>「→旋律として扱う」：実は打楽器ではなかった音色を旋律パート側に移せます（曲読込直後・未再生時のみ操作可）。</li>
+    </ul>
+    <h4>旋律パートへの割り当て</h4>
+    <ul>
+      <li>1チャンネル＝1音源という前提で、各MIDIチャンネルに使うSPCサンプルを選べます。（）内は実際に割り当てたサンプルのJSON上のinstrument_nameで、未割当のチャンネルには表示されません。</li>
+      <li>JSONのChannel Routingが明示的に変更されている（曲の途中で音色が入れ替わる等）場合、対応するMIDIチャンネルへSPCサンプルが自動で割り当てられます。またJSONのcenter_note情報から、割り当てたサンプルの基準ピッチも自動推定されます（ズレる場合は「基準ピッチ補正」欄で手動調整できます。正の値でピッチが上がります）。</li>
+      <li>mute（チェックボックス）/solo（ボタン、押すと自分だけmute解除・他は全部mute）は、旋律パートの発音そのものに効きます（▶再生・「曲を聴きながら割り当てる」の▶再生どちらでも共通）。打楽器の判定には影響しません。「全部on」で一括解除できます。</li>
+      <li>「→打楽器として扱う」：実は打楽器だったチャンネルを打楽器パート側に移せます（曲読込直後・未再生時のみ操作可）。</li>
+    </ul>
+    <h4>曲を聴きながら割り当てる</h4>
+    <ul>
+      <li>音色割当パネルの下部にある、ミニ版の全体譜面＋▶再生／■停止／🔁ループ再生です。割当作業をしながら、その場で曲を聴いて確認できます。ここでの再生には開始時カウントは入りません。</li>
     </ul>
     <h4>キーボード操作</h4>
     <ul>
@@ -317,19 +339,20 @@ const KEY_LAYOUT = ['1','2','3','4','q','w','e','r','a','s','d','f','z','x','c',
 const LANE_NAME_TO_INDEX = {}; LANES.forEach((l,i)=>{ LANE_NAME_TO_INDEX[l.name]=i; });
 // spc2midi-tsuu等でドラムトラックに付ける名前の略称辞書。'CYM'は左右区別なしシンバルの特別値
 const DRUM_ABBR = {
-  k:'Kick', kick:'Kick', bd:'Kick',
+  k:'Kick', kick:'Kick', bd:'Kick', b:'Kick',
   s:'SN', snare:'SN', sn:'SN',
   h:'HiHat', hihat:'HiHat', hh:'HiHat', ch:'HiHat',
-  oh:'O.Hat',
-  hp:'L.Ped', pedal:'L.Ped', hhped:'L.Ped',
+  oh:'O.Hat', 'o.hat':'O.Hat',
+  hp:'L.Ped', pedal:'L.Ped', hhped:'L.Ped', 'l.ped':'L.Ped',
   ht:'HiTom', hitom:'HiTom',
   lt:'LoTom', lowtom:'LoTom', lotom:'LoTom',
-  ft:'F.Tom', floortom:'F.Tom',
-  lc:'L.Cym', lcym:'L.Cym',
-  rc:'R.Cym', rcym:'R.Cym',
+  ft:'F.Tom', floortom:'F.Tom', 'f.tom':'F.Tom',
+  lc:'L.Cym', lcym:'L.Cym', 'l.cym':'L.Cym',
+  rc:'R.Cym', rcym:'R.Cym', 'r.cym':'R.Cym',
   rd:'Ride', ride:'Ride',
-  c:'CYM', cc:'CYM', crash:'CYM',
+  c:'CYM', cc:'CYM', crash:'CYM', cymbal:'CYM',
 };
+const TIMBRE_DISPLAY_NAME = { Kick:'Kick', SN:'Snare', HiHat:'HiHat', 'O.Hat':'O.Hat', 'L.Ped':'L.Ped', HiTom:'HiTom', LoTom:'LoTom', 'F.Tom':'F.Tom', 'L.Cym':'L.Cym', 'R.Cym':'R.Cym', Ride:'Ride', CYM:'Cymbal' };
 function defaultLaneIndexForTimbreName(name) {
   const key = (name || '').toLowerCase().trim();
   const target = DRUM_ABBR[key];
@@ -340,7 +363,6 @@ function defaultLaneIndexForTimbreName(name) {
 const LANE_NAME_LOWER_TO_INDEX = {}; LANES.forEach((l, i) => { LANE_NAME_LOWER_TO_INDEX[l.name.toLowerCase()] = i; });
 // GM由来(実名の無い)ノートの合成キーに使う、レーンごとの正規の短縮キー(ドット等を含まない英字のみ)
 const LANE_CANONICAL_KEY = { 'L.Cym': 'lc', 'HiHat': 'h', 'L.Ped': 'hp', 'SN': 's', 'HiTom': 'ht', 'Kick': 'k', 'LoTom': 'lt', 'F.Tom': 'ft', 'R.Cym': 'rc', 'O.Hat': 'oh', 'Ride': 'rd' };
-const CANONICAL_KEY_TO_LANE_NAME = {}; Object.entries(LANE_CANONICAL_KEY).forEach(([laneName, key]) => { CANONICAL_KEY_TO_LANE_NAME[key] = laneName; });
 function canonicalKeyForLane(lane) { return LANE_CANONICAL_KEY[lane.name] || lane.name.toLowerCase(); }
 function defaultLaneIndexForTimbreKey(key) {
   // GM由来の合成キー(レーン名そのもの)を優先的に解決し、それ以外はspc2midi等の略称辞書を見る
@@ -361,6 +383,7 @@ const devicesEl = document.getElementById('devices');
 const logEl = document.getElementById('log');
 const outputModeSelect = document.getElementById('outputModeSelect');
 const honbanCheckbox = document.getElementById('honbanCheckbox');
+const countInCheckbox = document.getElementById('countInCheckbox');
 const holdDurationInput = document.getElementById('holdDurationInput');
 const overviewHoldThresholdInput = document.getElementById('overviewHoldThresholdInput');
 const hitLinePercentInput = document.getElementById('hitLinePercentInput');
@@ -438,8 +461,10 @@ let drumPlayers = null;
 let drumTimbreLaneOverride = {}; // 音色名(小文字) -> レーンindex（HTML上で変更可能、区切りタグに保存）
 let distinctDrumTrackNames = []; // 今回読み込んだ曲の実際のドラムトラック名一覧(spc2midi等由来のみ)
 let distinctDrumTimbreKeys = []; // 音色キー一覧(実名+GM由来の合成キーを含む、SPC割当のキーとして使用)
-let jsonSourceHints = null; // spc2midi-tsuuのJSONから読んだ参考情報
+let jsonInstrumentNames = null; // サンプル番号(SRCN) -> instrument_name（旋律パートのラベル表示に使用）
 let jsonDrumSampleGuess = null; // JSONのSRCN+instrument_nameから推測した「レーンindex -> サンプル番号」の自動割当候補
+let jsonMelodicChannelGuess = null; // channel_routingが明示的に変更されている(値!==自身のindex)場合の「MIDIチャンネル -> サンプル番号」自動割当候補
+let jsonCenterNotes = null; // サンプル番号 -> 実際の基準ピッチ(半音, center_note/512)
 let melodicChannelPlayers = {}; // channel -> Tone.Player（SPCサンプル割り当て済みの旋律パート）
 let txtLines = []; // 共有txtから読み込んだ {name, tagStr} の一覧
 let drumSampleAssignment = {}; // レーンindex -> SPCサンプル番号（区切りタグに保存）
@@ -450,6 +475,7 @@ let loopRangeStartIdx = null, loopRangeEndIdx = null; // ループ範囲(小節i
 let melodicChannelMuted = {}; // channel -> true/false（実際の発音を左右する。判定には影響しない）
 let melodicPitchOffset = {}; // channel -> 半音単位のピッチ補正（SPCサンプルの基準音の推測がズレている場合に使う）
 let melodicPlayGen = {}; // channel -> 発音世代カウンタ（古いノートのstopが新しいノートを誤って止めないようにするため）
+let countClickSynth = null, countClickFilter = null; // 開始時カウントのスティック風クリック音
 
 /* =========================================================
    サンプルパターン生成
@@ -489,7 +515,7 @@ function buildSamplePattern(type) {
   return { duration: bars * 4 * beatSec, notes, bassNotes };
 }
 function bassTrack(bassNotes) {
-  return [{ channel: 0, notes: bassNotes.slice(), synth: null, idx: 0 }];
+  return [{ channel: 0, notes: bassNotes.slice(), pitchBends: [], pbRangeSemitones: 2, volumeCC: [], expressionCC: [], panCC: [], reverbCC: [], synth: null, panner: null, reverbSend: null, idx: 0 }];
 }
 function makeFakeMidi(duration, bpm, beats) {
   return {
@@ -513,7 +539,7 @@ function firstNoteTime() {
   melodicTrackStates.forEach(ts => ts.notes.forEach(n => { if (n.time < min) min = n.time; }));
   return isFinite(min) ? min : 0;
 }
-function computeMeasuresManual(offsetSec, lengthSec, duration) {
+function computeMeasuresManual(boundarySec, lengthSec, duration) {
   if (!(lengthSec > 0)) lengthSec = 2;
   const tolerance = lengthSec / 32;
   const times = allNoteTimes().slice().sort((a, b) => a - b);
@@ -525,15 +551,33 @@ function computeMeasuresManual(offsetSec, lengthSec, duration) {
     [times[lo], times[lo - 1]].forEach(c => { if (c === undefined) return; const d = Math.abs(c - t); if (d < bestDiff) { bestDiff = d; best = c; } });
     return bestDiff <= tolerance ? best : null;
   }
-  const list = []; let i = 0; let cur = offsetSec;
+  // 指定位置(boundarySec)は「ある小節の区切り位置」として扱い、そこから前方・後方の両方に区切りを広げる。
+  // 後方は、音符が無くなったところ(MIDI先頭)まで遡り、そこが最終的な第1小節になる。
+  const backStarts = [];
+  let cur = boundarySec;
   while (true) {
-    if (cur > duration + 0.001 && i > 0) break;
-    const snapped = nearestNote(cur);
-    const startTime = snapped !== null ? snapped : cur;
-    list.push({ index: i + 1, startTime, endTime: startTime + lengthSec });
-    i++; cur = startTime + lengthSec;
-    if (i > 3000) break;
+    const hasNoteBefore = times.length && times[0] < cur - tolerance;
+    if (!hasNoteBefore) break;
+    const prevBoundary = cur - lengthSec;
+    const snapped = nearestNote(prevBoundary);
+    const startTime = snapped !== null ? snapped : prevBoundary;
+    backStarts.push(startTime);
+    cur = startTime;
+    if (backStarts.length > 3000) break;
   }
+  backStarts.reverse();
+
+  const list = backStarts.map(startTime => ({ index: 0, startTime, endTime: startTime + lengthSec }));
+  let fwdCur = boundarySec, i = list.length;
+  while (true) {
+    if (fwdCur > duration + 0.001 && i > 0) break;
+    const snapped = nearestNote(fwdCur);
+    const startTime = snapped !== null ? snapped : fwdCur;
+    list.push({ index: 0, startTime, endTime: startTime + lengthSec });
+    i++; fwdCur = startTime + lengthSec;
+    if (i > 6000) break;
+  }
+  list.forEach((m, idx) => { m.index = idx + 1; });
   for (let k = 0; k < list.length - 1; k++) list[k].endTime = list[k + 1].startTime;
   return list;
 }
@@ -718,8 +762,9 @@ function timbreKeyForNote(n) {
   return n.timbreName ? n.timbreName.toLowerCase() : canonicalKeyForLane(laneForNote(n.midi));
 }
 function displayNameForTimbreKey(key) {
-  if (CANONICAL_KEY_TO_LANE_NAME[key] !== undefined) return CANONICAL_KEY_TO_LANE_NAME[key]; // GM由来の合成キーはレーン名で表示
-  return key;
+  const target = DRUM_ABBR[(key || '').toLowerCase().trim()];
+  if (target && TIMBRE_DISPLAY_NAME[target]) return TIMBRE_DISPLAY_NAME[target]; // 辞書にある名前(略称・正式名称どちらでも)は分かりやすい表示名に変換
+  return key; // 辞書に無い名前はそのまま表示
 }
 function canReclassify() {
   return !!loadedMidi && !isPlaying && !isStarting && Object.keys(holdTimers).length === 0;
@@ -784,7 +829,7 @@ function buildDrumTimbreUI() {
     const displayName = displayNameForTimbreKey(key);
     const row = document.createElement('div'); row.className = 'row';
 
-    const label = document.createElement('span'); label.style.whiteSpace = 'nowrap'; label.textContent = `"${displayName}" → `;
+    const label = document.createElement('span'); label.style.whiteSpace = 'nowrap'; label.textContent = `${displayName} → `;
 
     const laneSel = document.createElement('select');
     LANES.forEach((l, i) => { const opt = document.createElement('option'); opt.value = i; opt.textContent = l.name; laneSel.appendChild(opt); });
@@ -811,6 +856,15 @@ function cymbalIsFlexible() {
   const hasLC = drumNoteStates.some(n => n.lane.name === 'L.Cym');
   const hasRC = drumNoteStates.some(n => n.lane.name === 'R.Cym');
   return !(hasLC && hasRC);
+}
+function effectiveCymLane(lane) {
+  // L.Cym/R.Cymのどちらか一方しか使われていない曲では、入力を受け取る最初の地点でどちらも
+  // 「実際に使われている方」に正規化する。これにより発音・判定・グレーアウト等すべての場面で
+  // 常に同じレーンとして扱われる(場面ごとの個別対応が不要になる)。
+  if (lane.name !== 'L.Cym' && lane.name !== 'R.Cym') return lane;
+  if (!cymbalIsFlexible()) return lane;
+  const hasLC = drumNoteStates.some(n => n.lane.name === 'L.Cym');
+  return laneByName(hasLC ? 'L.Cym' : 'R.Cym');
 }
 
 /* =========================================================
@@ -876,17 +930,51 @@ function extractMidiParts(midi) {
       const timbreName = (t.name || '').trim() || null;
       notes.forEach(n => drumNotesRaw.push({ time: n.time, midi: n.midi, velocity: n.velocity, duration: n.duration, timbreName }));
     } else {
-      melodicRaw.push({ channel: t.channel, notes: notes.map(n => ({ time: n.time, name: n.name, midi: n.midi, duration: n.duration, velocity: n.velocity })), synth: null, idx: 0 });
+      const pitchBends = (t.pitchBends || []).map(pb => ({ time: pb.time, value: pb.value })).sort((a, b) => a.time - b.time);
+      let pbRangeSemitones = 2; // MIDI規格上のデフォルト(RPNで明示されていなければこれを使う)
+      const cc6 = t.controlChanges && (t.controlChanges[6] || t.controlChanges.dataEntryMsb);
+      if (cc6 && cc6.length) pbRangeSemitones = Math.max(1, Math.round(cc6[0].value * 127));
+      const ccOf = (num, alias) => (t.controlChanges && (t.controlChanges[num] || (alias && t.controlChanges[alias])) || []).map(c => ({ time: c.time, value: c.value })).sort((a, b) => a.time - b.time);
+      melodicRaw.push({
+        channel: t.channel,
+        notes: notes.map(n => ({ time: n.time, name: n.name, midi: n.midi, duration: n.duration, velocity: n.velocity })),
+        pitchBends, pbRangeSemitones,
+        volumeCC: ccOf(7, 'volume'), expressionCC: ccOf(11, 'expression'), panCC: ccOf(10, 'pan'), reverbCC: ccOf(91, 'reverbsend'),
+        synth: null, panner: null, reverbSend: null, idx: 0
+      });
     }
   });
   return { drumNotesRaw, melodicRaw };
 }
+function ccValueAt(ccArray, time, defaultVal) {
+  if (!ccArray || !ccArray.length) return defaultVal;
+  let val = defaultVal;
+  for (const cc of ccArray) { if (cc.time <= time + 1e-6) val = cc.value; else break; }
+  return val;
+}
+function scheduleMelodicPitchBends(ts, n, myGen, kind, obj, base, bendRange) {
+  // ノートの発音中に来るピッチベンドイベントを、実時間でのsetTimeoutとして予約する
+  const events = (ts.pitchBends || []).filter(pb => pb.time > n.time - 1e-6 && pb.time < n.time + n.duration);
+  events.forEach(pb => {
+    const delayMs = Math.max(0, (pb.time - n.time) / playbackSpeed * 1000);
+    setTimeout(() => {
+      if (melodicPlayGen[ts.channel] !== myGen) return;
+      const semis = pb.value * bendRange;
+      try {
+        if (kind === 'player') obj.playbackRate = Math.pow(2, (n.midi + semis - base) / 12);
+        else obj.frequency.rampTo(base * Math.pow(2, semis / 12), 0.03);
+      } catch (e) { console.error('ピッチベンド適用エラー:', e); }
+    }, delayMs);
+  });
+}
 
-function parseJsonSourceHints(parsed) {
-  // channel_routingが全部9(打楽器チャンネル)のものは打楽器用の音源なので、旋律パートの参考表示からは除外する
-  return Object.entries(parsed.source_parameter || {})
-    .filter(([, v]) => !(Array.isArray(v.channel_routing) && v.channel_routing.every(c => c === 9)))
-    .map(([id, v]) => ({ id, program: v.program || '', instrumentName: v.instrument_name || '' }));
+function parseJsonInstrumentNames(parsed) {
+  // サンプル番号(SRCN) -> instrument_name。実際に割り当てられたサンプルのラベル表示に使う(推測ではなく確定情報)
+  const map = {};
+  Object.entries(parsed.source_parameter || {}).forEach(([srcnStr, v]) => {
+    if (v.instrument_name) map[parseInt(srcnStr, 10)] = v.instrument_name;
+  });
+  return map;
 }
 function parseJsonDrumGuess(parsed) {
   // JSONのキー番号(SRCN)は、このアプリが抽出するSPCサンプル番号(#36等)と同じ並び方式のため、
@@ -901,6 +989,29 @@ function parseJsonDrumGuess(parsed) {
     guess[key] = parseInt(srcnStr, 10);
   });
   return guess;
+}
+function parseJsonMelodicChannelGuess(parsed) {
+  // channel_routing配列の値がindexと異なる(=Edit Channel Routingで明示的に変更した)箇所は、
+  // 「そのMIDIチャンネルにはこのサンプルを使う」という確実な情報として自動割当の候補にできる。
+  // 1つのサンプルが複数チャンネルに明示的にルーティングされている場合は、その全部を拾う。
+  // 変更していない(値===index)箇所は「未使用」と「変更なし」の区別がつかないため対象外。
+  const guess = {};
+  Object.entries(parsed.source_parameter || {}).forEach(([srcnStr, v]) => {
+    if (Array.isArray(v.channel_routing) && v.channel_routing.every(c => c === 9)) return; // 打楽器用は対象外
+    if (!Array.isArray(v.channel_routing)) return;
+    for (let i = 0; i < v.channel_routing.length; i++) {
+      if (v.channel_routing[i] !== i) guess[v.channel_routing[i]] = parseInt(srcnStr, 10);
+    }
+  });
+  return guess;
+}
+function parseJsonCenterNotes(parsed) {
+  // center_noteは512倍された固定小数点形式。512で割ると実際の基準ピッチ(半音、小数含む)になる
+  const map = {};
+  Object.entries(parsed.source_parameter || {}).forEach(([srcnStr, v]) => {
+    if (typeof v.center_note === 'number') map[parseInt(srcnStr, 10)] = v.center_note / 512;
+  });
+  return map;
 }
 async function handleChosenFiles(files) {
   let zipRawName = null;
@@ -944,8 +1055,10 @@ async function handleChosenFiles(files) {
     if (jsonFileOnly) {
       try {
         const parsed = JSON.parse(await jsonFileOnly.text());
-        jsonSourceHints = parseJsonSourceHints(parsed);
+        jsonInstrumentNames = parseJsonInstrumentNames(parsed);
         jsonDrumSampleGuess = parseJsonDrumGuess(parsed);
+        jsonMelodicChannelGuess = parseJsonMelodicChannelGuess(parsed);
+        jsonCenterNotes = parseJsonCenterNotes(parsed);
       } catch (err) { console.error('JSON解析エラー', err); }
     }
     if (spcFileOnly && loadedMidi) { await processSpcFile(spcFileOnly); }
@@ -975,13 +1088,17 @@ async function handleChosenFiles(files) {
     applySongData(midi, drumNotesRaw, melodicRaw, `ファイル: ${midFile.name}`, resolvedTag, false);
     document.getElementById('patternFile').checked = true;
 
-    jsonSourceHints = null;
+    jsonInstrumentNames = null;
     jsonDrumSampleGuess = null;
+    jsonMelodicChannelGuess = null;
+    jsonCenterNotes = null;
     if (jsonFile) {
       try {
         const parsed = JSON.parse(await jsonFile.text());
-        jsonSourceHints = parseJsonSourceHints(parsed);
+        jsonInstrumentNames = parseJsonInstrumentNames(parsed);
         jsonDrumSampleGuess = parseJsonDrumGuess(parsed);
+        jsonMelodicChannelGuess = parseJsonMelodicChannelGuess(parsed);
+        jsonCenterNotes = parseJsonCenterNotes(parsed);
       } catch (err) { console.error('JSON解析エラー', err); }
     }
     if (spcFile) { await processSpcFile(spcFile); }
@@ -1190,7 +1307,7 @@ function handleMIDIMessage(event) {
   const command = status & 0xf0;
   if (command === 0x90 && velocity > 0) {
     log(`Note ON  note=${note} velocity=${velocity}`, 'noteon');
-    const lane = laneForNote(note);
+    const lane = effectiveCymLane(laneForNote(note));
     if (!isPlaying) { playSoundForLane(lane, velocity / 127); if (loadedMidi) startHoldTimer('note' + note); }
     else { if (!honbanCheckbox.checked) playSoundForLane(lane, velocity / 127); judgeHitByLane(lane, velocity / 127); startHoldTimer('note' + note); }
   } else if (command === 0x80 || (command === 0x90 && velocity === 0)) {
@@ -1231,7 +1348,11 @@ compressor.connect(masterBus); compressor.connect(reverb);
 
 function laneHasTimbreInfo(laneIndex) {
   if (selectedOutput) return true; // 外部MIDI出力は判定材料が無いのでグレーアウトしない
-  if (currentKit === 'spc') return findTimbreKeyCurrentlyShownInLane(LANES[laneIndex]) !== null && drumSampleAssignment[findTimbreKeyCurrentlyShownInLane(LANES[laneIndex])] !== undefined;
+  if (currentKit === 'spc') {
+    const lane = effectiveCymLane(LANES[laneIndex]);
+    const key = findTimbreKeyCurrentlyShownInLane(lane);
+    return key !== null && drumSampleAssignment[key] !== undefined;
+  }
   return true; // 内蔵キット(アコースティック/TR-909/LinnDrum)は9レーン全部持っているのでグレーアウトしない
 }
 function buildKitPreviewButtons() {
@@ -1242,7 +1363,7 @@ function buildKitPreviewButtons() {
     b.textContent = '▶ ' + lane.name;
     const available = laneHasTimbreInfo(i);
     if (!available) { b.disabled = true; b.title = 'この出力先ではこの音がまだ用意されていません'; }
-    b.onclick = async () => { await Tone.start(); playSoundForLane(lane, 0.9); };
+    b.onclick = async () => { await Tone.start(); playSoundForLane(effectiveCymLane(lane), 0.9); };
     kitPreviewGrid.appendChild(b);
   });
 }
@@ -1310,7 +1431,8 @@ function decodeBRR(ram, startAddr, loopAddr) {
   let looped = false;
   let loopStartSample = null;
   let blocks = 0;
-  while (addr + 9 <= ram.length && blocks < 600) {
+  const HARD_CAP = 3000; // 終端記号(endFlag)に辿り着くまで読み続ける唯一の安全装置。正当な長い音源を取りこぼさないよう、ループ開始点探索での早期打ち切りは行わない
+  while (addr + 9 <= ram.length && blocks < HARD_CAP) {
     if (loopAddr !== undefined && loopStartSample === null && addr === loopAddr) loopStartSample = samples.length;
     const header = ram[addr];
     const shift = header >> 4;
@@ -1349,7 +1471,7 @@ function extractSpcSamples(ram, dsp) {
     const loopAddr = ram[ea + 2] | (ram[ea + 3] << 8);
     if (startAddr === 0 || startAddr >= ram.length - 9 || startAddr === 0xffff) continue;
     const { pcm, looped, loopStartSample } = decodeBRR(ram, startAddr, loopAddr);
-    if (pcm.length < 640) continue; // 20ms(32000Hz換算)未満はノイズ/ゴミ領域とみなして除外
+    if (pcm.length < 1) continue; // デコード結果が空(無効データ)の場合のみ除外。短さ自体では除外しない
     out.push({ index: i, startAddr, loopAddr, pcm, looped, loopStartSample });
   }
   return out;
@@ -1380,6 +1502,10 @@ async function processSpcFile(file) {
     if (jsonDrumSampleGuess && Object.keys(jsonDrumSampleGuess).length) {
       pendingDrumSampleAssignment = Object.assign({}, jsonDrumSampleGuess, pendingDrumSampleAssignment || {});
       spcStatusEl.textContent += `（JSONの情報から打楽器パートのサンプルを自動割当しました）`;
+    }
+    if (jsonMelodicChannelGuess && Object.keys(jsonMelodicChannelGuess).length) {
+      pendingMelodicSampleAssignment = Object.assign({}, jsonMelodicChannelGuess, pendingMelodicSampleAssignment || {});
+      spcStatusEl.textContent += `（Channel Routingの情報から旋律パートの一部も自動割当しました）`;
     }
     applyPendingSampleAssignments();
   } catch (err) {
@@ -1415,7 +1541,7 @@ function assignmentLabelForSample(idx, exclude) {
 function optionLabelForSample(s, exclude) {
   const ms = (s.pcm.length / 32000 * 1000).toFixed(0);
   const labels = assignmentLabelForSample(s.index, exclude);
-  return `#${s.index} (${ms}ms)${labels.length ? ' ◀' + labels.join(',') : ''}`;
+  return `#${s.index} (${ms}ms)${labels.length ? ' ◀' + labels.join(', ') : ''}`;
 }
 function renderSpcSampleList() {
   spcSampleListEl.innerHTML = '';
@@ -1424,9 +1550,10 @@ function renderSpcSampleList() {
     row.className = 'row';
     row.style.marginBottom = '2px';
     const ms = (s.pcm.length / 32000 * 1000).toFixed(0);
+    const addrHex = s.startAddr.toString(16).toUpperCase().padStart(4, '0');
     const labels = assignmentLabelForSample(s.index);
-    const assignedText = labels.length ? ` <span style="color:#7CFC00;">◀${labels.join(',')}</span>` : '';
-    row.innerHTML = `<button data-idx="${s.index}" class="spcPlayBtn">▶ #${s.index}</button><span class="hint">${ms}ms${s.looped ? ' / ループ' : ''}${assignedText}</span>`;
+    const assignedText = labels.length ? ` <span style="color:#7CFC00;">◀${labels.join(', ')}</span>` : '';
+    row.innerHTML = `<button data-idx="${s.index}" class="spcPlayBtn">▶ #${s.index} (Addr:${addrHex})</button><span class="hint">${ms}ms${s.looped ? ' / ループ' : ''}${assignedText}</span>`;
     spcSampleListEl.appendChild(row);
   });
   spcSampleListEl.querySelectorAll('.spcPlayBtn').forEach(btn => {
@@ -1483,6 +1610,9 @@ function applyMelodicAssignments() {
     }
     melodicChannelPlayers[ch] = player;
     melodicSampleAssignment[ch] = idx;
+    if (melodicPitchOffset[ch] === undefined && jsonCenterNotes && jsonCenterNotes[idx] !== undefined) {
+      melodicPitchOffset[ch] = Math.round(60 - jsonCenterNotes[idx]); // JSONのcenter_noteから基準ピッチを自動推定
+    }
   });
   renderSpcSampleList();
   buildDrumTimbreUI();
@@ -1493,7 +1623,8 @@ function buildMelodicAssignUI() {
   const channels = [...new Set(melodicTrackStates.map(ts => ts.channel))].sort((a, b) => a - b);
   melodicAssignRowEl.innerHTML = '';
   channels.forEach((ch, i) => {
-    const hint = jsonSourceHints && jsonSourceHints[i] ? (jsonSourceHints[i].instrumentName || jsonSourceHints[i].program) : '';
+    const assignedIdx = melodicSampleAssignment[ch];
+    const hint = (assignedIdx !== undefined && jsonInstrumentNames && jsonInstrumentNames[assignedIdx]) ? jsonInstrumentNames[assignedIdx] : '';
     const row = document.createElement('div'); row.className = 'row';
     const label = document.createElement('span'); label.style.whiteSpace = 'nowrap';
     label.textContent = `ch${ch}${hint ? `(${hint})` : ''}: `;
@@ -1562,15 +1693,24 @@ function applyPendingSampleAssignments() {
 /* =========================================================
    再生開始/停止
    ========================================================= */
-async function startPlayback() {
+function playCountClick() {
+  if (!countClickSynth) {
+    countClickFilter = new Tone.Filter({ type: 'bandpass', frequency: 3200, Q: 1.5 }).connect(compressor);
+    countClickSynth = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.0005, decay: 0.025, sustain: 0, release: 0.01 } }).connect(countClickFilter);
+  }
+  try { countClickSynth.triggerAttackRelease('32n'); } catch (e) {}
+}
+async function startPlayback(skipCountIn) {
   if (!loadedMidi) return;
   loadStateEl.textContent = '🔊 音源読み込み確認中...';
   await Tone.start(); await Tone.loaded();
   loadStateEl.textContent = '';
   melodicTrackStates.forEach(ts => {
-    const synth = new Tone.PolySynth(Tone.FMSynth, { envelope: { attack: 0.01, decay: 0.15, sustain: 0.25, release: 0.4 }, modulationIndex: 3 });
-    synth.volume.value = -10; synth.connect(masterBus); synth.connect(reverb);
-    ts.synth = synth;
+    const synth = new Tone.FMSynth({ envelope: { attack: 0.01, decay: 0.15, sustain: 0.25, release: 0.4 }, modulationIndex: 3 });
+    const panner = new Tone.Panner(0).connect(masterBus);
+    const reverbSend = new Tone.Gain(ccValueAt(ts.reverbCC, 0, 0.18)).connect(reverb);
+    synth.connect(panner); synth.connect(reverbSend);
+    ts.synth = synth; ts.panner = panner; ts.reverbSend = reverbSend;
   });
   drumNoteStates.forEach(n => { if (n.judged) n.lastResult = n.result; n.judged = false; n.result = null; });
   const range = getLoopRange();
@@ -1578,8 +1718,16 @@ async function startPlayback() {
   if (loopModeActive) { loopStart = range.start; loopEnd = range.end; } else { loopStart = 0; loopEnd = loadedMidi.duration; }
   playbackSpeed = parseFloat(speedRange.value);
   const startAt = loopModeActive ? loopStart : songTimeAtLastStart;
-  songTimeAtLastStart = startAt; playStartPerf = performance.now();
-  rewindPointersTo(startAt);
+  // 開始時カウント：本編の手前を「静かな助走区間」として現在時刻に組み込み、通常のスクロール描画をそのまま使う
+  let countInSec = 0;
+  if (!skipCountIn && countInCheckbox.checked) {
+    const beats = Math.max(1, parseInt(beatsPerMeasureInput.value) || 4);
+    const beatSec = (60 / currentBpm) / playbackSpeed;
+    countInSec = beats * beatSec;
+    for (let i = 0; i < beats; i++) setTimeout(() => { if (isPlaying) playCountClick(); }, i * beatSec * 1000);
+  }
+  songTimeAtLastStart = startAt - countInSec; playStartPerf = performance.now();
+  rewindPointersTo(startAt); // 本編最初のノート位置にポインタを合わせる(カウント中は何も鳴らない)
   isPlaying = true;
   resetScore();
   setPlayButtonsDisabled(true, false);
@@ -1587,9 +1735,13 @@ async function startPlayback() {
 }
 function stopPlayback() {
   if (!isPlaying) return;
-  isPlaying = false;
   songTimeAtLastStart = getCurrentSongTime();
-  melodicTrackStates.forEach(ts => { if (ts.synth) ts.synth.dispose(); ts.synth = null; });
+  isPlaying = false;
+  melodicTrackStates.forEach(ts => {
+    if (ts.synth) ts.synth.dispose(); ts.synth = null;
+    if (ts.panner) ts.panner.dispose(); ts.panner = null;
+    if (ts.reverbSend) ts.reverbSend.dispose(); ts.reverbSend = null;
+  });
   setPlayButtonsDisabled(!loadedMidi, true);
   redrawIdle();
   updateReclassifyButtonsState();
@@ -1600,12 +1752,12 @@ function setPlayButtonsDisabled(playDis, stopDis) {
   if (assignPlayBtn) { assignPlayBtn.disabled = playDis; assignStopBtn.disabled = stopDis; }
   updateReclassifyButtonsState();
 }
-playBtn.addEventListener('click', startPlayback);
+playBtn.addEventListener('click', () => startPlayback(false));
 stopBtn.addEventListener('click', stopPlayback);
 const assignPlayBtn = document.getElementById('assignPlayBtn');
 const assignStopBtn = document.getElementById('assignStopBtn');
 const assignLoopToggle = document.getElementById('assignLoopToggle');
-assignPlayBtn.addEventListener('click', startPlayback);
+assignPlayBtn.addEventListener('click', () => startPlayback(true));
 assignStopBtn.addEventListener('click', stopPlayback);
 [loopQuickToggle, assignLoopToggle].forEach(t => t.addEventListener('change', () => {
   loopCheckbox.checked = t.checked;
@@ -1623,13 +1775,10 @@ function updateScoreHUD() {
 }
 function judgeHitByLane(lane, velocity) {
   const currentTime = getCurrentSongTime() - (parseFloat(offsetRange.value) / 1000);
-  const isCymLane = lane.name === 'L.Cym' || lane.name === 'R.Cym';
-  const flex = isCymLane && cymbalIsFlexible();
   let best = null, bestAbs = Infinity, bestSigned = 0;
   for (const n of drumNoteStates) {
     if (n.judged) continue;
-    const laneMatches = flex ? (n.lane.name === 'L.Cym' || n.lane.name === 'R.Cym') : (n.lane.name === lane.name);
-    if (!laneMatches) continue;
+    if (n.lane.name !== lane.name) continue;
     const signed = currentTime - n.time, abs = Math.abs(signed);
     if (abs > GOOD_WINDOW) continue;
     if (abs < bestAbs) { best = n; bestAbs = abs; bestSigned = signed; }
@@ -1652,8 +1801,10 @@ function applyJudgment(result, lane) {
    パッド／キーボード入力
    ========================================================= */
 function padDown(lane) {
-  if (!isPlaying) { playSoundForLane(lane, 0.9); if (loadedMidi) startHoldTimer('pad' + lane.name); }
-  else { if (!honbanCheckbox.checked) playSoundForLane(lane, 0.9); judgeHitByLane(lane, 0.9); startHoldTimer('pad' + lane.name); }
+  const holdKey = 'pad' + lane.name; // 物理パッド基準のキーは変えない(押す/離すの対応を保つため)
+  const effLane = effectiveCymLane(lane);
+  if (!isPlaying) { playSoundForLane(effLane, 0.9); if (loadedMidi) startHoldTimer(holdKey); }
+  else { if (!honbanCheckbox.checked) playSoundForLane(effLane, 0.9); judgeHitByLane(effLane, 0.9); startHoldTimer(holdKey); }
 }
 function padUp(lane) { clearHoldTimer('pad' + lane.name); }
 
@@ -1804,9 +1955,9 @@ function getNowX() { return notationCanvas.width * (parseFloat(hitLinePercentInp
 
 function drawJudgmentRing(pctx, x, y, result, alpha) {
   if (!result || result === 'PERFECT') return;
-  const offsetX = result === 'LATE' ? -9 : result === 'EARLY' ? 9 : 0;
+  const offsetY = result === 'LATE' ? 9 : result === 'EARLY' ? -9 : 0;
   pctx.save(); pctx.globalAlpha = alpha; pctx.strokeStyle = RESULT_COLORS[result]; pctx.lineWidth = 4;
-  pctx.beginPath(); pctx.arc(x + offsetX, y, 11, 0, Math.PI * 2); pctx.stroke(); pctx.restore();
+  pctx.beginPath(); pctx.arc(x, y + offsetY, 11, 0, Math.PI * 2); pctx.stroke(); pctx.restore();
 }
 function drawNotation(currentTime) {
   const nowX = getNowX();
@@ -1978,22 +2129,42 @@ function gameLoop() {
       const n = ts.notes[ts.idx];
       const audible = !melodicChannelMuted[ts.channel];
       if (audible) {
+        const volVal = ccValueAt(ts.volumeCC, n.time, 1);
+        const exprVal = ccValueAt(ts.expressionCC, n.time, 1);
+        const panVal = ccValueAt(ts.panCC, n.time, 0.5);
+        const gainMul = Math.max(0.05, Math.min(1.5, volVal * exprVal));
+        const effVelocity = Math.max(0.05, Math.min(1, n.velocity * gainMul));
+        const bendRange = ts.pbRangeSemitones || 2;
+        const initialBend = ccValueAt(ts.pitchBends, n.time, 0) * bendRange;
+        if (ts.panner) { try { ts.panner.pan.value = (panVal - 0.5) * 2; } catch (e) {} }
+
         if (selectedOutput) {
           const chByte = 0x90 | ((ts.channel || 0) & 0x0f);
-          const vel = Math.max(1, Math.min(127, Math.round(n.velocity * 127)));
+          const vel = Math.max(1, Math.min(127, Math.round(effVelocity * 127)));
           try { selectedOutput.send([chByte, n.midi, vel]); setTimeout(() => { try { selectedOutput.send([0x80 | ((ts.channel||0)&0x0f), n.midi, 0]); } catch(e){} }, Math.max(50, n.duration*1000/playbackSpeed)); } catch (e) {}
         } else if (melodicChannelPlayers[ts.channel]) {
           const p = melodicChannelPlayers[ts.channel];
           try {
             const baseMidi = 60 - (melodicPitchOffset[ts.channel] || 0); // 基準音(C4)は仮定。正の値でピッチを上げる
-            p.playbackRate = Math.pow(2, (n.midi - baseMidi) / 12);
-            p.volume.value = Tone.gainToDb(Math.max(0.1, Math.min(1, n.velocity)));
+            p.playbackRate = Math.pow(2, (n.midi + initialBend - baseMidi) / 12);
+            p.volume.value = Tone.gainToDb(effVelocity);
             p.start();
             const myGen = (melodicPlayGen[ts.channel] = (melodicPlayGen[ts.channel] || 0) + 1);
             const stopMs = Math.max(50, (n.duration / playbackSpeed) * 1000);
-            setTimeout(() => { if (melodicPlayGen[ts.channel] === myGen) { try { p.stop(); } catch (e) {} } }, stopMs);
-          } catch (e) {}
-        } else if (ts.synth) { ts.synth.triggerAttackRelease(n.name, n.duration, undefined, n.velocity); }
+            setTimeout(() => { if (melodicPlayGen[ts.channel] === myGen) { try { p.stop(); } catch (e) { console.error('旋律パート(SPC音源)停止エラー:', e); } } }, stopMs);
+            scheduleMelodicPitchBends(ts, n, myGen, 'player', p, baseMidi, bendRange);
+          } catch (e) { console.error('旋律パート(SPC音源)発音エラー:', e); }
+        } else if (ts.synth) {
+          try {
+            const baseFreq = Tone.Frequency(n.midi, 'midi').toFrequency();
+            ts.synth.volume.value = Tone.gainToDb(effVelocity);
+            ts.synth.triggerAttack(baseFreq * Math.pow(2, initialBend / 12), undefined, effVelocity);
+            const myGen = (melodicPlayGen[ts.channel] = (melodicPlayGen[ts.channel] || 0) + 1);
+            const stopMs = Math.max(50, (n.duration / playbackSpeed) * 1000);
+            setTimeout(() => { if (melodicPlayGen[ts.channel] === myGen && ts.synth) { try { ts.synth.triggerRelease(); } catch (e) { console.error('旋律パート(内蔵シンセ)停止エラー:', e); } } }, stopMs);
+            scheduleMelodicPitchBends(ts, n, myGen, 'synth', ts.synth, baseFreq, bendRange);
+          } catch (e) { console.error('旋律パート(内蔵シンセ)発音エラー:', e); }
+        }
       }
       ts.idx++;
     }
