@@ -51,10 +51,10 @@
 </head>
 <body>
 
-<div id="versionBadge" style="text-align:right; font-size:0.7em; color:#888; padding:2px 8px 0 0;">0.9.202609041727</div>
+<div id="versionBadge" style="text-align:right; font-size:0.7em; color:#888; padding:2px 8px 0 0;">0.9.202609042002</div>
 
 <div class="row">
-  <input type="file" id="fileInput" accept=".mid,.midi,.spc,.json,.zip,.txt" multiple>
+  <input type="file" id="fileInput" multiple>
   <div id="patternRadios">
     <label><input type="radio" name="pattern" value="file" id="patternFile"> 読み込んだファイル</label>
     <label><input type="radio" name="pattern" value="8beat" id="pattern8beat" checked> 8ビート</label>
@@ -121,13 +121,6 @@
   <div class="hint" id="calibStatus">「楽譜から基準指定」を押した後、下の楽譜表示内の音符を2つクリックするとBPMを実測します。「小節の開始基準を指定」は音符を1つクリックすると小節先頭に設定します（「開始基準をずらす拍数」でそこから前後にずらせます）。ファイル名に設定情報が含まれている場合は自動で読み込み、このパネルは自動的に隠れます。全<span id="measureTotal">-</span>小節。</div>
 </div>
 
-<div class="panel" id="drumTimbrePanel" style="display:none;">
-  <h3>🥁 打楽器パートの音色（表示レーン・SPC音源の割り当て）</h3>
-  <div class="hint">音色名(spc2midi-tsuu等で名前(k/s/h/c等)を付けたもの。名前が無い曲はレーン名をそのまま音色名として扱います)ごとに、表示レーンとSPCサンプルをまとめて割り当てられます。表示レーンを変更しても、割り当てたSPCサンプルは音色名にひもづいたままついてきます。設定内容は区切り設定の出力(ファイル名/txt行)にも含まれます。</div>
-  <div id="drumAutoMsgEl" class="hint"></div>
-  <div id="drumTimbreRow"></div>
-</div>
-
 <div class="sectionHeader"><label><input type="checkbox" id="showGameCheckbox"> 音ゲー表示（ノーツ・スコア）</label></div>
 <div id="gameWrap">
   <div>
@@ -141,15 +134,6 @@
     </div>
     <canvas id="gameCanvas" width="720" height="600"></canvas>
   </div>
-</div>
-
-<div class="panel">
-  <h3>🎚 判定タイミング補正（iPhone等でズレる場合）</h3>
-  <div class="row">
-    <input type="range" id="offsetRange" min="-300" max="300" step="10" value="0">
-    <span id="offsetLabel">0ms</span>
-  </div>
-  <div class="hint">自分の入力が「遅れて」判定される場合は＋方向、「早く」判定される場合は－方向に動かしてください</div>
 </div>
 
 <div class="panel">
@@ -173,6 +157,13 @@
   <h3 style="margin-top:12px;">試聴</h3>
   <div class="hint">ボタン・MIDI信号・16padのいずれでも試聴できます。今回読み込んだ曲に無い音色（命名情報が無いレーン）はグレーアウトされます。</div>
   <div id="kitPreviewGrid"></div>
+
+  <div id="drumTimbrePanel" style="display:none; margin-top:12px;">
+    <h4>🥁 打楽器パートの音色（表示レーン・SPC音源の割り当て）</h4>
+    <div class="hint">音色名(spc2midi-tsuu等で名前(k/s/h/c等)を付けたもの。名前が無い曲はレーン名をそのまま音色名として扱います)ごとに、表示レーンとSPCサンプルをまとめて割り当てられます。表示レーンを変更しても、割り当てたSPCサンプルは音色名にひもづいたままついてきます。設定内容は区切り設定の出力(ファイル名/txt行)にも含まれます。</div>
+    <div id="drumAutoMsgEl" class="hint"></div>
+    <div id="drumTimbreRow"></div>
+  </div>
 
   <h3 style="margin-top:12px;">手動での音色割当</h3>
   <div class="hint">
@@ -208,6 +199,15 @@
     <span id="copyStatusEl" class="hint"></span>
   </div>
   <div class="hint">txtファイル（1行＝1曲、ファイル名＋この文字列）に貼り付けるか、MIDIファイル名に埋め込んで保存すると、次回読み込み時に自動で復元されます。</div>
+</div>
+
+<div class="panel">
+  <h3>🎚 判定タイミング補正（iPhone等でズレる場合）</h3>
+  <div class="row">
+    <input type="range" id="offsetRange" min="-300" max="300" step="10" value="0">
+    <span id="offsetLabel">0ms</span>
+  </div>
+  <div class="hint">自分の入力が「遅れて」判定される場合は＋方向、「早く」判定される場合は－方向に動かしてください</div>
 </div>
 
 <div class="panel">
@@ -1239,23 +1239,31 @@ function log(msg, cls) {
   logEl.appendChild(line); logEl.scrollTop = logEl.scrollHeight;
 }
 function updateDeviceList(midiAccess) {
-  const names = [...midiAccess.inputs.values()].map(i => i.name);
-  devicesEl.textContent = '接続デバイス: ' + (names.length ? names.join(', ') : 'なし');
+  try {
+    const names = [];
+    midiAccess.inputs.forEach(input => { names.push(input.name || input.id || '(名称不明の入力機器)'); });
+    devicesEl.textContent = '接続デバイス: ' + (names.length ? names.join(', ') : 'なし');
+  } catch (e) {
+    devicesEl.textContent = '接続デバイス: 取得エラー(' + e.message + ')';
+    console.error('updateDeviceList エラー:', e);
+  }
 }
 function refreshOutputOptions(midiAccess) {
-  const current = outputModeSelect.value;
-  outputModeSelect.innerHTML =
-    '<option value="internal:acoustic">内蔵音源: アコースティック</option>' +
-    '<option value="internal:tr909">内蔵音源: TR-909</option>' +
-    '<option value="internal:linndrum">内蔵音源: LinnDrum</option>' +
-    '<option value="internal:spc">SPCから抽出した音源</option>';
-  for (const output of midiAccess.outputs.values()) {
-    const opt = document.createElement('option');
-    opt.value = 'ext:' + output.id; opt.textContent = '外部MIDI出力: ' + output.name;
-    outputModeSelect.appendChild(opt);
-  }
-  if ([...outputModeSelect.options].some(o => o.value === current)) outputModeSelect.value = current;
-  else outputModeSelect.value = 'internal:' + currentKit;
+  try {
+    const current = outputModeSelect.value;
+    outputModeSelect.innerHTML =
+      '<option value="internal:acoustic">内蔵音源: アコースティック</option>' +
+      '<option value="internal:tr909">内蔵音源: TR-909</option>' +
+      '<option value="internal:linndrum">内蔵音源: LinnDrum</option>' +
+      '<option value="internal:spc">SPCから抽出した音源</option>';
+    midiAccess.outputs.forEach(output => {
+      const opt = document.createElement('option');
+      opt.value = 'ext:' + output.id; opt.textContent = '外部MIDI出力: ' + (output.name || output.id);
+      outputModeSelect.appendChild(opt);
+    });
+    if ([...outputModeSelect.options].some(o => o.value === current)) outputModeSelect.value = current;
+    else outputModeSelect.value = 'internal:' + currentKit;
+  } catch (e) { console.error('refreshOutputOptions エラー:', e); }
 }
 function setOutputToInternalKit(kitName) {
   currentKit = kitName;
@@ -1273,18 +1281,22 @@ outputModeSelect.addEventListener('change', () => {
 });
 const midiInputSelect = document.getElementById('midiInputSelect');
 function bindInputs(midiAccess) {
-  for (const input of midiAccess.inputs.values()) {
-    input.onmidimessage = (midiInputSelect.value === 'all' || midiInputSelect.value === input.id) ? handleMIDIMessage : null;
-  }
+  try {
+    midiAccess.inputs.forEach(input => {
+      input.onmidimessage = (midiInputSelect.value === 'all' || midiInputSelect.value === input.id) ? handleMIDIMessage : null;
+    });
+  } catch (e) { console.error('bindInputs エラー:', e); }
 }
 function refreshInputOptions(midiAccess) {
-  const current = midiInputSelect.value;
-  midiInputSelect.innerHTML = '<option value="all">(すべての入力)</option>';
-  for (const input of midiAccess.inputs.values()) {
-    const opt = document.createElement('option'); opt.value = input.id; opt.textContent = input.name;
-    midiInputSelect.appendChild(opt);
-  }
-  if ([...midiInputSelect.options].some(o => o.value === current)) midiInputSelect.value = current;
+  try {
+    const current = midiInputSelect.value;
+    midiInputSelect.innerHTML = '<option value="all">(すべての入力)</option>';
+    midiAccess.inputs.forEach(input => {
+      const opt = document.createElement('option'); opt.value = input.id; opt.textContent = input.name || input.id;
+      midiInputSelect.appendChild(opt);
+    });
+    if ([...midiInputSelect.options].some(o => o.value === current)) midiInputSelect.value = current;
+  } catch (e) { console.error('refreshInputOptions エラー:', e); }
   bindInputs(midiAccess);
 }
 midiInputSelect.addEventListener('change', () => { if (midiAccessGlobal) bindInputs(midiAccessGlobal); });
